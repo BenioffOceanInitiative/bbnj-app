@@ -1,0 +1,55 @@
+---
+title: "icosa"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+librarian::shelf(icosa)
+
+# a very low resolution hexagrid
+hg <- hexagrid(c(4,4), sp=T)
+hg <- hexagrid(c(2,3,4), sp=T) # 244 - 322 km
+hg <- hexagrid(c(4,4,4), sp=T) #  91 - 116 km; 40,962 hexagons
+# the Robinson projection
+# robin <- CRS("+proj=robin")
+# Equal Earth projection
+length(hg@sp)
+ee    <- CRS("+proj=eqearth +lon_0=0 +datum=WGS84 +units=m +no_defs")
+# plot with labels
+# plot(hVeryLow, projargs=robin)
+# gridlabs(hVeryLow, type="f", cex=0.6,projargs=robin)
+plot(hg, projargs=ee)
+gridlabs(hg, type="f", cex=0.6,projargs=ee)
+#plot3d(hVeryLow)
+hex <- SpPolygons(hg) %>% st_as_sf(hg@sp)
+
+hex <- st_as_sf(hg@sp)
+
+h <- hex
+h <- st_make_valid(h)
+h <- h %>% 
+  mutate(
+    area = st_area(geometry))
+summary(h$area)
+h$area %>% range()
+library(units)
+h$area %>% set_units(km^2) %>% .^0.5 %>% range() %>% round()
+
+st_precision(h)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
