@@ -5,7 +5,7 @@ const {DeckGL, H3ClusterLayer} = deck;
 
 const layer = new H3ClusterLayer({
   id: 'H3ClusterLayer',
-  data: 'https://shiny.ecoquants.com/bbnj-app/abnj_hexids_res2.json',
+  data: 'https://shiny.ecoquants.com/bbnj-app/abnj_hex_res2.json',
   
   /* props from H3ClusterLayer class */
   

@@ -66,22 +66,22 @@ server <- function(input, output) {
       add_h3_cluster_layer(data = sf_h3_url, properties = properties) %>%
       add_basemap()
   
-    # properties <- list(
-    #   stroked = TRUE,
-    #   filled = TRUE,
-    #   extruded = FALSE,
-    #   getHexagons = ~hexIds,
-    #   # getFillColor = JS("d => [255, (1 - d.abnj / 500) * 255, 0]"),
-    #   getFillColor = JS("d => [255, 255, 0]"),
-    #   getLineColor = c(255, 255, 255),
-    #   lineWidthMinPixels = 2,
-    #   getTooltip = ~abnj
-    # )
-    # 
-    # hexids_url = "https://shiny.ecoquants.com/bbnj-app/abnj_hexids_res2.json"
-    # deckgl(zoom = 10.5, pitch = 20) %>%
-    #   add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
-    #   add_basemap()
+    hexids_url <- "https://shiny.ecoquants.com/bbnj-app/abnj_hex_res2.json"
+    properties <- list(
+      stroked = TRUE,
+      filled = TRUE,
+      extruded = FALSE,
+      getHexagons = ~hexIds,
+      # getFillColor = JS("d => [255, (1 - d.abnj / 500) * 255, 0]"),
+      # getFillColor = JS("d => [255, 255, 0]"),
+      getFillColor = c(255, 255, 0),
+      getLineColor = c(255, 255, 255),
+      lineWidthMinPixels = 2,
+      getTooltip = ~abnj,
+      wrapLongitude = FALSE)
+    deckgl(zoom = 3, pitch = 0) %>%
+      add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
+      add_basemap()
     
   })
 }

@@ -32,30 +32,56 @@ librarian::shelf(
   BenioffOceanInitiative/bbnj,
   deckgl, dplyr, geojsonsf, glue, here, jsonlite,
   crazycapivara/h3, leaflet, sf)
-
+```
+```{r}
 # get polygons for ABNJ (outside EEZ)
 abnj <- bbnj::p_abnj
 
+# url prep
+# hex_res     <- 2
+hex_res     <- 3
+hex_compact <- F
+hex         <- glue("abnj_hex_res{hex_res}{ifelse(hex_compact, 'c','')}")
+hex_geojson <- glue(here("data/{hex}.geojson"))
+hexids_www  <- here(glue("www/{hex}.json"))
+hexids_url  <- glue("https://shiny.ecoquants.com/bbnj-app/{hex}.json")
+
 # get hexagon IDs for ABNJ polygons
-hex_res <- 2
-hex_geojson <- glue(here("data/abnj_hex_res{hex_res}.geojson"))
-hexids_json <- glue("abnj_hexids_res{hex_res}.json")
-hexids_www  <- here(glue("www/{hexids_json}"))
-hexids_url  <- glue("https://shiny.ecoquants.com/bbnj-app/{hexids_json}")
-hex_ids <- h3::polyfill(abnj, res = hex_res) 
-hexids_js <- jsonlite::toJSON(list(list(
+hexids      <- h3::polyfill(abnj, res = hex_res) 
+if (hex_compact){
+  hexids_c    <- h3::compact(hexids)
+  glue("h3 abnj res{hex_res} compact: {length(hexids)} -> {length(hexids_c)}")
+  # h3 abnj res2 compact: 2339 -> 1529
+  hexids <- hex_ids_c
+}
+```
+
+## mapping prep
+
+```{r}
+# convert hexids to json
+hexids_js   <- jsonlite::toJSON(list(list(
   abnj = unbox(1),
-  hexIds = hex_ids)))
+  hexIds = hexids)))
+
+# write hexids json file to www folder
 writeLines(hexids_js, hexids_www)
 
+```
+
+## prioritizr prep
+
+```{r}
 # create multipolygon describing outline of hexagons (for prioritizr)
 hex_sf <- h3::h3_set_to_multi_polygon(hex_ids) 
 hex_gj <- geojsonsf::sfc_geojson(hex_sf)
 
+# write sfc polygon geojson to data folder
 writeLines(hex_gj, hex_geojson)
+
 ```
 
-## Map `hex_sf` with `leaflet`
+## map `hex_sf` with `leaflet`
 
 ```{r}
 # works with leaflet , though maybe CRS is off?
@@ -68,28 +94,38 @@ leaflet(data = hex_sf, width = "100%") %>%
     fillOpacity = 0.7)
 ```
 
-## Map `hex_ids` with `deckgl`
-
+## map `hex_ids` with `deckgl`
 
 ```{r}
+# hexids_url  <- glue("https://shiny.ecoquants.com/bbnj-app/{hex}.json")
+hexids_url <- "https://shiny.ecoquants.com/bbnj-app/abnj_hex_res2.json"
+# or use `hexids_js` to test
+
 properties <- list(
-  stroked = TRUE,
-  filled = TRUE,
-  extruded = FALSE,
+  stroked     = TRUE,
+  filled      = TRUE,
+  extruded    = FALSE,
   getHexagons = ~hexIds,
   # getFillColor = JS("d => [255, (1 - d.abnj / 500) * 255, 0]"),
-  getFillColor = JS("d => [255, 255, 0]"),
+  getFillColor = c(62,  136, 62),
   getLineColor = c(255, 255, 255),
-  lineWidthMinPixels = 2,
-  getTooltip = ~abnj
+  lineWidthMinPixels = 1,
+  opacity = 0.4
+  # ,
+  # getTooltip = ~abnj
 )
-hexids_url = "https://shiny.ecoquants.com/bbnj-app/abnj_hexids_res0.json"
-deckgl(zoom = 10.5, pitch = 20) %>%
-  add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
+
+# with res2
+deckgl(zoom = 0, pitch = 0) %>%
+  # add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
+  add_h3_cluster_layer(data = hexids_js, properties = properties) %>%
   add_basemap()
+
+# reading from internal json works, reading from url doesn't yet
+
+
+
 ```
-
-
 
 ### sf example
 
@@ -112,215 +148,3 @@ deckgl(zoom = 10.5, pitch = 20) %>%
   add_h3_cluster_layer(data = sf_json, properties = properties) %>%
   add_basemap()
 ```
-
-
-## OLD: experimental
-  
-```{r, eval=FALSE}
-
-# write geojson with hexagon geoboundaries
-# test: 
-hexagon <- hex_ids[1]
-
-# get_h3_id_attrs <- function(h3_id) {
-#   list(
-#     coordinates = c(h3::h3_to_geo(h3_id)),
-#     geo_boundary = h3::h3_to_geo_boundary(h3_id))
-# }
-
-# feed hexids into new json for map display
-
-
-
-h3_cells <- system.file("sample-data/h3-cells.csv", package = "deckgl") %>% read.csv()
-get_h3_id_attrs(h3_id)
-
-h3_id = hex_ids[1]
-hexagon = hex_ids[1]
-
-get_h3_id_attrs <- function(hexagon) {
-  jsonlite::toJSON(
-    list(
-      hex_id          = hexagon,
-      coordinates     = h3::h3_to_geo(hexagon),
-      # geo_boundary    = sf::st_polygon(h3::h3_to_geo_boundary(hexagon)),
-      sf_geo_boundary = h3::h3_to_geo_boundary_sf(hexagon),
-      parent          = h3::h3_to_parent(hexagon, res = 0),
-      children        = h3::h3_to_children(hexagon, res = 2))) # or sub other res
-}
-
-test <- get_h3_id_attrs(hex_ids[1])
-
-
-json <- map(hex_ids, get_h3_id_attrs) %>% 
-  jsonlite::toJSON()
-
-
-
-
-
-
-get_h3_id_attrs(hex_ids[1])
-
-
-hex_attrs <- map(hex_ids, get_h3_id_attrs)
-
-ply_sfc_geojson <- geojsonsf::sfc_geojson(hex_sfc)
-hex_sf_geojson  <- geojsonsf::sf_geojson(h3::h3_to_geo_boundary_sf(hexagon))
-
-
-props <- list(
-  extruded = TRUE,
-  cellSize = 200,
-  elevationScale = 4,
-  getPosition = ~lng + lat,
-  tooltip = "Count: {{count}}"
-)
-
-ply_sf_df <- data.frame(hex_sf) 
-props <- list(
-  stroked = TRUE,
-  filled = TRUE,
-  extruded = FALSE,
-  getPolygons = ~geometry,
-  getLineColor = c(255, 255, 255),
-  lineWidthMinPixels = 2)
-
-data <- data("sf_bike_parking")
-# test, can't get hex's / multipolygon to show...
-deckgl(zoom = 11, pitch = 45) %>%
-  add_basemap() %>% 
-  add_polygon_layer(data = ply_sf_df, properties = props)
-  # add_grid_layer(data = data, properties = props)
-  
-  add_polygon_layer(
-    data       = ply_sfc_geojson, 
-    properties = list(
-      stroked = TRUE,
-      filled = TRUE,
-      extruded = FALSE,
-      getPolygons = ~coordinates,
-      getFillColor = c(255, 255, 255),
-      getLineColor = c(255, 255, 255),
-      lineWidthMinPixels = 2)) %>% 
-  add_basemap()
-  
-
-
-# render hexagons
-# h3_index <- hex_sf %>% unlist(recursive = F) %>% unlist(recursive = F)
-```
-
-```{r}
-# plot to test
-hex_sfc %>% sf::st_geometry() %>% plot(col = "blue")
-
-
-deckgl(zoom = 0) %>% 
-  add_basemap() %>% 
-  add_h3_cluster_layer(
-    data = hex_sfc,
-    properties = list(
-      stroked = TRUE,
-      filled = TRUE,
-      extruded = FALSE,
-      getHexagons = ~hexIds,
-      getFillColor = JS("d => [255, (1 - d.mean / 500) * 255, 0]"),
-      getLineColor = c(255, 255, 255),
-      lineWidthMinPixels = 2)
-    )
-  
-
-
-
-
-
-
-
-h3_cluster_props <- list(
-  id = "h3-cluster-layer",
-  stroked = TRUE,
-  filled = TRUE,
-  extruded = FALSE,
-  getHexagons = ~hexIds,
-  getFillColor = JS("d => [255, (1 - d.mean / 500) * 255, 0]"),
-  getLineColor = c(255, 255, 255),
-  lineWidthMinPixels = 2)
-
-deckgl(zoom = 10.5, pitch = 20) %>%
-  add_h3_cluster_layer(data = hex_ids, properties = h3_cluster_props) %>%
-  add_basemap()
-
-
-deckgl::deckgl(zoom = 0, pitch = 20) %>%
-  deckgl::add_basemap() %>% 
-  deckgl::add_h3_cluster_layer(
-    data       = hex_json, 
-    properties = props)
-
-
-  
-
-
-# deckgl
-hex_cluster_props <- list(
-  stroked = TRUE,
-  filled = TRUE,
-  extruded = FALSE,
-  getHexagons = ~hexIds,
-  getFillColor = JS("d => [255, (1 - d.mean / 500) * 255, 0]"),
-  getLineColor = c(255, 255, 255),
-  lineWidthMinPixels = 2,
-  getTooltip = ~mean
-)
-
-
-
-  # pickable = FALSE,
-  # stroked = TRUE,
-  # filled = TRUE,
-  # extruded = FALSE,
-  # getPolygon = ~geometry,
-  # # getHexagons  = ~hexIds, # ~hexIds
-  # getFillColor = "blue",
-  # # getFillColor = JS("d => [255, (1 - d.mean / 500) * 255, 0]"),
-  # # getLineColor = c(255, 255, 255),
-  # getTooltip   = ~mean,
-  # lineWidthMinPixels = 2)
-
-hex_geojson <- geojsonsf::sfc_geojson(hex_sf)
-
-
-# d_poly <- tibble(contour = hex_sf)
-  
-# hex_props <- list(
-#   id = "poly_layer",
-#   data = hex_geojson,
-#   pickable = TRUE,
-#   stroked = TRUE,
-#   filled = TRUE,
-#   extruded = FALSE,
-#   wireframe = FALSE,
-#   lineWidthMinPixels = 1,
-#   getPolygon = JS("d => d.contour"),
-#   # getElevation = JS("d => d.population / d.area / 10"),
-#   # getFillColor = JS("d => [d / d.area / 60, 140, 0]"),
-#   getLineColor = c(80, 80, 80),
-#   getLineWidth = 250)
-# 
-# deckgl(zoom = 0) %>% 
-#   add_polygon_layer(data = hex_geojson, properties = hex_props) %>%
-#   add_basemap()
-
-
-deckgl::deckgl(zoom = 0, pitch = 20) %>%
-  deckgl::add_basemap() %>% 
-  deckgl::add_polygon_layer(
-    data       = hex_sf, 
-    properties = properties)
-```
-
-
-
-
-
