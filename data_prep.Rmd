@@ -97,9 +97,17 @@ leaflet(data = hex_sf, width = "100%") %>%
 ## map `hex_ids` with `deckgl`
 
 ```{r}
-# hexids_url  <- glue("https://shiny.ecoquants.com/bbnj-app/{hex}.json")
-hexids_url <- "https://shiny.ecoquants.com/bbnj-app/abnj_hex_res2.json"
-# or use `hexids_js` to test
+hexids_url  <- glue("https://shiny.ecoquants.com/bbnj-app/{hex}.json")
+# hexids_url <- "https://shiny.ecoquants.com/bbnj-app/abnj_hex_res2.json"
+# issues connecting to url so using `hexids_js` to test
+
+# TODO: fix errors accessing json data @ associated url 
+# RJSONIO::fromJSON(as.character(hexids_url))
+# returns ERROR when reading from url - this seems to be why directly applying hexids_url as data source results in no h3 cluster layer on map, even though layer appears when accessing same data internally (w/o url)
+  # Error in file(con, "r") : 
+  # cannot open the connection to 'https://shiny.ecoquants.com/bbnj-app/abnj_hex_res3.json'
+  # cannot open the connection to 'https://shiny.ecoquants.com/bbnj-app/abnj_hex_res2.json'
+  # (error regardless of resolution)
 
 properties <- list(
   stroked     = TRUE,
@@ -115,16 +123,13 @@ properties <- list(
   # getTooltip = ~abnj
 )
 
-# with res2
+# with res3
 deckgl(zoom = 0, pitch = 0) %>%
   # add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
   add_h3_cluster_layer(data = hexids_js, properties = properties) %>%
   add_basemap()
 
-# reading from internal json works, reading from url doesn't yet
-
-
-
+# reading from internal json works, reading from url doesn't yet...not sure why
 ```
 
 ### sf example
