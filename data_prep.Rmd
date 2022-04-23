@@ -434,11 +434,6 @@ if (interactive()) map
 ### v
 
 ```{r}
-library(mapboxer)
-
-mapbox_token_txt <- '~/My Drive/private/mapbox_token_bdbest.txt'
-Sys.setenv("MAPBOX_API_TOKEN" = readLines(mapbox_token_txt))
-
 # SRC_ID <- "country-boundaries-data"
 # 
 # vector_src <- mapbox_source(
@@ -480,10 +475,18 @@ mapdeck(
 #   179.753385877314,
 #   "hsl(212, 68%, 46%)"
 # ]
+```
+
+```{r mapboxer}
+library(mapboxer)
+
+mapbox_token_txt <- '~/My Drive/private/mapbox_token_bdbest.txt'
+Sys.setenv("MAPBOX_API_TOKEN" = readLines(mapbox_token_txt))
 
 mapboxer(
   # style = basemaps$Carto$positron,
   style = "mapbox://styles/bdbest/cl216kpw100cb15oz3ch44zui",
+  width = "100vw", height = "100vh",
   center = c(0, 0),
   zoom = 1) %>%
   # add_source(vector_src, id = SRC_ID) %>%
@@ -491,7 +494,7 @@ mapboxer(
   add_source(mapbox_source(
     type = "vector",
     # url  = "mapbox://bdbest.1avrgtp7"), # hex_res4
-    url  = "mapbox://bdbest.22bk03cc"),   # hex_res2
+    url  = "mapbox://bdbest.99btin43"),   # hex_res1
     id   = "src_hexagons") %>%
   add_layer(
     style = list(
@@ -499,7 +502,7 @@ mapboxer(
       "type"         = "fill",
       "source"       = "src_hexagons",
       # "source-layer" = "abnj_hex_res4-aysgu5", # hex_res4
-      "source-layer" = "abnj_hex_res2-75qhx1",   # hex_res2
+      "source-layer" = "abnj_hex_res1-59uxw0",   # hex_res1
       "paint" = list(
         "fill-color"   = "blue",
         "fill-opacity" = 0.6)),
@@ -512,9 +515,90 @@ mapboxer(
 
 ## mapboxapi
 
+* [SymbolixAU/mapdeck#346: Mapbox vector tiles](https://github.com/SymbolixAU/mapdeck/issues/346)
+* [SymbolixAU/mapdeck#128: Vector Tiles](https://github.com/SymbolixAU/mapdeck/issues/128)
+* [SymbolixAU/mapbox#2: Vector Tiles](https://github.com/SymbolixAU/mapbox/issues/2)
+* [SymbolixAU/mapbox](https://github.com/SymbolixAU/mapbox)
+
 ```{r, eval=F}
 mapboxapi::tippecanoe()
 mapboxapi::addMapboxTiles() # for leaflet
+```
+
+## mapdeck -> mapbox
+
+```{r}
+js <- '{"id": "terrain-data",
+	"type": "line",
+	"source": {
+		"type": "vector",
+		"url": "mapbox://mapbox.mapbox-terrain-v2"
+	},
+	"source-layer": "contour",
+	"layout": {
+		"line-join": "round",
+		"line-cap": "round"
+	},
+	"paint": {
+		"line-color": "#ff69b4",
+		"line-width": 1
+	}}'
+
+mapbox_token_txt <- '~/My Drive/private/mapbox_token_bdbest.txt'
+mb_token = readLines(mapbox_token_txt)
+
+library(mapbox)
+mapbox(
+  token = mb_token, 
+  location = c(-122.44, 37.753), zoom = 10) %>%
+  add_layer( js )
+
+
+source <- '{
+	"type": "vector",
+	"url": "mapbox://mapbox.mapbox-terrain-v2"
+}'
+
+id <- 'contours'
+
+contours <- '{
+	"id": "contours",
+	"type": "line",
+	"source": "contours",
+	"source-layer": "contour",
+	"layout": {
+		"visibility": "visible",
+		"line-join": "round",
+		"line-cap": "round"
+	},
+	"paint": {
+		"line-color": "#877b59",
+		"line-width": 1
+	}
+}'
+
+mapbox(
+  token = mb_token,
+  location = c(-71.9675, -13.5320), zoom = 10) %>%
+  add_source(
+    id = 'contours', 
+    js = source) %>% 
+  add_layer(
+    js = contours)
+```
+
+## leaflet.mapboxgl
+
+```{r}
+library(leaflet)
+library(leaflet.mapboxgl)
+
+mapbox_token_txt <- '~/My Drive/private/mapbox_token_bdbest.txt'
+options(mapbox.accessToken = readLines(mapbox_token_txt))
+
+leaflet(quakes) %>%
+  addMapboxGL(style = "mapbox://styles/mapbox/streets-v9") %>%
+  addCircleMarkers(weight = 1, fillOpacity = 0, radius = 3)
 ```
 
 
