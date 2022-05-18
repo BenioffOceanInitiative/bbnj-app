@@ -3,16 +3,16 @@ title: "Solution 1: initial test with vgpm only"
 output:
   html_document:
     toc: true
-    toc_depth: 2
+    toc_depth: 4
     toc_float: true
-    code_folding: show
+    code_folding: hide
 date: "`r Sys.Date()`"
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 ```
 
 
@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 librarian::shelf(
   BenioffOceanInitiative/bbnj, dplyr, DT,
-  exactextractr, here, mapview, 
+  exactextractr, fs, glue, here, mapview, 
   prioritizr,
   purrr, raster, sf, stringr, units)
 select <- dplyr::select
@@ -32,18 +32,29 @@ mapviewOptions(
 # devtools::load_all(here("~/Github/bbest/prioritizr"))
 # devtools::install_local(here("~/Github/bbest/prioritizr"))
 
-pu <- read_sf(here("data/abnj_hex_res2.geojson"))
+hex_geo <- "data/abnj_hex_res2.geojson"
 
-# calculate area
-pu <- pu %>%
-  # st_make_valid() %>%      # dateline issues
-  filter(st_is_valid(.)) %>% # 8 hexagons dropped 
-  mutate(
-    area_km2 = st_area(geometry) %>% 
-      set_units(km^2) %>% 
-      drop_units(),
-    area_pct = area_km2 / sum(area_km2))
-sum(pu$area_pct)
+pu_rds  <- glue("{path_ext_remove(hex_geo)}_area.rds")
+if (!file.exists(pu_rds)){
+  
+  pu <- read_sf(hex_geo)
+  
+  # calculate area
+  pu <- pu %>%
+    # st_make_valid() %>%      # dateline issues
+    filter(st_is_valid(.)) %>% # 8 hexagons dropped 
+    mutate(
+      area_km2 = st_area(geometry) %>% 
+        set_units(km^2) %>% 
+        drop_units(),
+      area_pct = area_km2 / sum(area_km2))
+  # sum(pu$area_pct) # check adds to 12
+
+  saveRDS(pu, file = pu_rds)
+} else {
+  pu <- readRDS(pu_rds)
+}
+
 mapview(pu, zcol="area_pct")
 ```
 
