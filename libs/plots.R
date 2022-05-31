@@ -10,6 +10,8 @@ gmap <- function(
   librarian::shelf(
     ggplot2, rnaturalearth, sf, viridis)
   
+  label = str_replace_all(label, "; ", "\n")
+  
   world <- ne_countries(scale = "medium", returnclass = "sf")
   bb <- st_bbox(
     st_transform(grid, crs))

@@ -1,0 +1,398 @@
+---
+title: "Solutions 3 - ∆targets"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    code_folding: hide
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+```
+
+Cumulative sum plots of layers for determining target per layer and allowing weights to have differential impact on scenario solution.
+
+## Get planning units as hexagons
+
+```{r pu}
+librarian::shelf(
+  BenioffOceanInitiative/bbnj, dplyr, DT,
+  exactextractr, fs, ggplot2, glue, here, mapview, 
+  prioritizr,
+  purrr, raster, rlang, scales, sf, stringr, tidyr, units)
+source(here("libs/plots.R"))
+select <- dplyr::select
+mapviewOptions(fgb = FALSE)
+mapviewOptions(
+  vector.palette = mapviewPalette("mapviewSpectralColors"))
+# devtools::load_all(here("~/Github/bbest/prioritizr"))
+# devtools::install_local(here("~/Github/bbest/prioritizr"))
+
+hex_geo <- "data/abnj_hex_res2.geojson"
+# hex_geo <- "data/abnj_hex_res4.geojson"
+
+pu_rds  <- glue("{path_ext_remove(hex_geo)}_area.rds")
+if (!file.exists(pu_rds)){
+  
+  pu <- read_sf(hex_geo)
+  
+  # calculate area
+  pu <- pu %>%
+    # st_make_valid() %>%      # dateline issues
+    filter(st_is_valid(.)) %>% # 8 hexagons dropped 
+    mutate(
+      area_km2 = st_area(geometry) %>% 
+        set_units(km^2) %>% 
+        drop_units(),
+      area_pct = area_km2 / sum(area_km2))
+  # sum(pu$area_pct) # check adds to 12
+
+  saveRDS(pu, file = pu_rds)
+} else {
+  pu <- readRDS(pu_rds)
+  # paste(names(pu), collapse = ", ")
+  # hexid, on_dtln, lon, lat, FID, geometry, area_km2, area_pct
+}
+
+# mapview(pu, zcol="area_pct")
+# plot(pu)
+```
+
+## Get layers
+
+```{r lyrs7}
+lyrs7_grd <- here("data/lyrs7_mol.grd")
+
+if (!file.exists(lyrs7_grd)){
+  tifs1 <- list.files(here("../bbnj-scripts/map_layers"), "tif$", full.names = T)
+  tifs2 <- list.files(here("../bbnj-scripts/presentation_maps"), "tif$", full.names = T)[-1] # drop redundant bio_vgpm.tif
+  lyrs <- stack(c(tifs1, tifs2))
+  sort(names(lyrs))
+  
+  s_nspp <- subset(lyrs, sort(names(lyrs))[26:48])
+  r_nspp <- calc(s_nspp, sum, na.rm = T)
+  
+  s_mounts <- subset(lyrs, sort(names(lyrs))[49:51])
+  r_mounts <- calc(s_mounts, sum, na.rm = T)
+  
+  r_vents <- raster(lyrs, layer = "phys_vents")
+  r_scapes <- raster(lyrs, layer = "scapes_hetero")
+  
+  r_vgpm <- raster(lyrs, layer = "bio_vgpm")
+  r_rls  <- raster(lyrs, layer = "rls_all")
+  r_fishing <- raster(lyrs, layer = "fishing_KWH")
+  
+  # TODO: consider log/log10/normalize transforms of nspp, fish effort 
+  #plot(r_vgpm)
+  s_lyrs <- stack(
+    r_fishing,
+    r_vgpm,
+    r_nspp,
+    r_rls,
+    r_vents,
+    r_mounts,
+    r_scapes)
+  names(s_lyrs) <- c(
+    "fishing",
+    "vgpm",
+    "nspp",
+    "rls",
+    "vents",
+    "mounts",
+    "scapes")
+  terra::writeRaster(s_lyrs, lyrs7_grd)
+}
+s_lyrs7 <- terra::rast(lyrs7_grd)
+  
+# plot(s_lyrs7)
+```
+
+## Extract layers to planning units
+
+```{r extract & threshold}
+# extract feature values
+f_0 <- exact_extract(
+  s_lyrs7, pu, fun = "mean", append_cols = "hexid", progress = F) %>% 
+  tibble() %>% 
+  rename_with(~str_replace(., "mean.", ""), everything())
+
+# extra calculations
+f <- f_0 %>% 
+  mutate(
+    fishing = 1/fishing,            # TODO: log(1/fishing)? 
+    spp     = rls * nspp,
+    benthic = vents + mounts) %>%   # TODO: rescale(vents) + rescale(mounts)? 
+  mutate(
+    across(where(is.numeric), ~replace_na(., 0)))
+
+pu_f <- pu %>%               # 129,906 × 8
+  left_join(f, by = "hexid") # 129,906 × 10
+
+get_pu_v_ks <- function(pu_f, v, ks){
+  var <- as_label(enquo(v))
+
+  d_v <- pu_f %>% 
+    st_drop_geometry() %>% 
+    arrange(desc({{v}})) %>% 
+    mutate(
+      var = var,
+      km2 = cumsum(area_km2),
+      val = cumsum({{v}})) %>% 
+    select(var, km2, val)
+  
+  val_sum <- d_v %>% pull(val) %>% last()
+    
+  d_k <- lapply(
+    ks,
+    function(k){
+      i <- max(which(d_v$km2 < d_v$km2[nrow(d_v)]*k))
+      tibble(
+        var = var, 
+        k   = k,
+        km2 = d_v$km2[i],
+        val = d_v$val[i],
+        pct_val = val/val_sum) }) %>% 
+    bind_rows()
+
+  p <- d_v %>% 
+    ggplot(aes(x = km2, y = val)) + 
+    geom_area(fill = "gray", color=NA)
+  
+  add_k_paths <- function(k, d_k){
+    
+    # https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
+    col <- c(
+      `0.3` = "#9ecae1",
+      `0.5` = "#3182bd")[as.character(k)]
+    
+    x <- d_k %>% filter(k == !!k) %>% pull(km2)
+    y <- d_k %>% filter(k == !!k) %>% pull(val)
+    y_pct <- d_k %>% filter(k == !!k) %>% pull(pct_val)
+    z <- tribble(
+      ~x, ~y,
+      x,  0,
+      x,  y,
+      0,  y)
+    
+    list(
+      geom_path(data = z, aes(x,y), color=col),
+      annotate(
+        "text", x = x, y = y,
+        label = glue("{k*100}%: {comma(x, 0.1)} ({percent(y_pct, 0.1)})")))
+  }
+
+  p <- p +
+    lapply(
+      ks,
+      add_k_paths,
+      d_k) +
+    labs(
+      x = "area_km2",
+      y = var) +
+    theme_minimal()
+    
+  list(
+    k=d_k, p=p)
+}
+# kp1 <- get_pu_v_ks(pu_f, fishing, c(0.3, 0.5))
+# names(k_nspp)
+# k_nspp$k
+# kp1$p
+
+k_p <- sapply(
+  c("fishing", "benthic", "scapes", "vgpm", "spp"),
+  function(var){
+    get_pu_v_ks(pu_f, !!sym(var), c(0.3, 0.5))
+  }, 
+  simplify = F)
+
+p <- map(k_p, "p")
+
+k <- map(k_p, "k") %>% 
+  bind_rows() %>% 
+  select(-km2) %>% 
+  rename(pct_area = k)
+
+datatable(k) %>% 
+  formatPercentage(c("pct_area", "pct_val"), 1)
+```
+
+```{r plots, results = 'asis'}
+# walk(p, print)
+```
+
+```{r}
+# knitr::opts_chunk$set(eval = F)
+```
+
+```{r 30% area; targets 1; equal weights}
+s_name <- "30% area; targets 1; equal weights"
+```
+## Solution: `r s_name`
+
+```{r}
+# ocean area
+a <- 0.3
+
+# feature weights
+f_w <- c(
+  fishing = 1,
+  vgpm    = 1,
+  spp     = 1,
+  benthic = 1,
+  scapes  = 1)
+
+# problem ----
+p <- pu_f %>% 
+  problem(features = names(f_w), cost_column = "area_pct") %>%
+  add_min_shortfall_objective(a) %>% 
+  add_relative_targets(1) %>%
+  add_feature_weights(f_w)
+  
+# solve ----
+s <- solve(p, force = T)
+
+mapview(s %>% filter(solution_1==1), layer.name = s_name)
+
+gmap(s, "solution_1", s_name)
+
+s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
+
+# calculate feature representation statistics based on the prioritization
+s_cov <- eval_target_coverage_summary(p, s[, "solution_1"])
+datatable(s_cov)
+```
+
+```{r 30% area; targets 1; spp*5 weights}
+s_name <- "30% area; targets 1; spp*5 weights"
+```
+## Solution: `r s_name`
+
+```{r}
+# ocean area
+a <- 0.3
+
+# feature weights
+f_w <- c(
+  fishing = 1,
+  vgpm    = 1,
+  spp     = 5,
+  benthic = 1,
+  scapes  = 1)
+
+# problem ----
+p <- pu_f %>% 
+  problem(features = names(f_w), cost_column = "area_pct") %>%
+  add_min_shortfall_objective(a) %>% 
+  add_relative_targets(1) %>%
+  add_feature_weights(f_w)
+  
+# solve ----
+s <- solve(p, force = T)
+
+#mapview(s %>% filter(solution_1==1), layer.name = "solution")
+
+gmap(s, "solution_1", s_name)
+
+# s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
+
+# calculate  feature representation statistics based on the prioritization
+s_cov <- eval_target_coverage_summary(p, s[, "solution_1"])
+datatable(s_cov)
+```
+
+```{r, 30% area; targets 99% of max; spp*5 weights}
+s_name <- "30% area; targets 99% of max; spp*5 weights"
+```
+## Solution: `r s_name`
+
+```{r}
+# ocean area
+a <- 0.3
+
+# feature targets
+d_t <- k %>% 
+  filter(pct_area == a) %>% 
+  mutate(
+    target = 0.99 * pct_val)
+f_t <- setNames(d_t$target, d_t$var)
+
+# feature weights
+f_w <- c(
+  fishing = 1,
+  vgpm    = 1,
+  spp     = 5,
+  benthic = 1,
+  scapes  = 1)
+
+# problem ----
+p <- pu_f %>% 
+  problem(features = names(f_w), cost_column = "area_pct") %>%
+  add_min_shortfall_objective(a) %>% 
+  add_relative_targets(f_t) %>%
+  add_feature_weights(f_w)
+  
+# solve ----
+s <- solve(p, force = T)
+
+# mapview(s %>% filter(solution_1==1), layer.name = s_name)
+
+gmap(s, "solution_1", s_name)
+
+# s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
+
+# calculate feature representation statistics based on the prioritization
+s_cov <- eval_target_coverage_summary(p, s[, "solution_1"])
+datatable(s_cov)
+```
+
+```{r 30% area; targets 90% of max; spp*5 weights}
+s_name <- "30% area; targets 90% of max; spp*5 weights"
+```
+## Solution: `r s_name`
+
+```{r}
+# ocean area
+a <- 0.3
+
+# feature targets
+d_t <- k %>% 
+  filter(pct_area == a) %>% 
+  mutate(
+    target = 0.90 * pct_val)
+f_t <- setNames(d_t$target, d_t$var)
+
+# feature weights
+f_w <- c(
+  fishing = 1,
+  vgpm    = 1,
+  spp     = 5,
+  benthic = 1,
+  scapes  = 1)
+
+# problem ----
+p <- pu_f %>% 
+  problem(features = names(f_w), cost_column = "area_pct") %>%
+  add_min_shortfall_objective(a) %>% 
+  add_relative_targets(f_t) %>%
+  add_feature_weights(f_w)
+  
+# solve ----
+s <- solve(p, force = T)
+
+# mapview(s %>% filter(solution_1==1), layer.name = s_name)
+
+gmap(s, "solution_1", s_name)
+
+s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
+
+# calculate feature representation statistics based on the prioritization
+s_cov <- eval_target_coverage_summary(p, s[, "solution_1"])
+datatable(s_cov)
+```
+
