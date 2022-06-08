@@ -24,7 +24,7 @@ Cumulative sum plots of layers for determining target per layer and allowing wei
 # devtools::install_local("../bbnj")
 librarian::shelf(
   BenioffOceanInitiative/bbnj, dplyr, DT,
-  exactextractr, fs, ggplot2, glue, here, mapview, 
+  exactextractr, fs, ggplot2, glue, h3, here, mapview, 
   prioritizr,
   purrr, raster, readr, rlang, scales, sf, stringr, 
   tibble,  tidyr, units)
@@ -253,7 +253,9 @@ f_ws <- expand_grid(
     scenario = glue(
       "area{area}_benthic{benthic}_fishing{fishing}_scapes{scapes}_spp{spp}_vgpm{vgpm}")) %>% 
   relocate(scenario)
-datatable(f_ws)
+f_ws %>% 
+  select(-scenario) %>% 
+  datatable()
 ```
 
 ```{r}
@@ -334,8 +336,8 @@ d %>%
   unnest(c(scenario, features)) %>% 
   write_csv("data/solution_features.csv")
 
-h4 <- readRDS(glue("data/abnj_hex_res4_area.rds"))
-h2 <- readRDS(glue("data/abnj_hex_res2_area.rds"))
+h4 <- readRDS(glue("data/abnj_hex_res4_area.rds")) # 129,906 × 8
+h2 <- readRDS(glue("data/abnj_hex_res2_area.rds")) #   3,120 × 8
 
 hexids <- read_csv("data/solution_hexids.csv") %>% 
   filter(
@@ -348,9 +350,125 @@ rda <- "data/scenario_5layers.RData"
 # save.image(file = rda)
 load(rda)
 
-# x <- h4 %>% 
-#   filter(hexid %in% hexids) %>% 
+y <- h4 %>%
+  filter(hexid %in% hexids) # 42,675 × 8
 #   st_union()
+
+hexids
+
+tibble(
+  hexid = hexids) %>% 
+  mutate(
+    hexid2 = map_chr(hexid, h3_to_parent, 2))
+
+z <- h2 %>% 
+  select(hexid) %>% 
+  st_join(
+    y %>% select(hexid4=hexid), left=F) %>% # 59,842 × 4
+  mutate(
+    area_km2 = st_area(geometry) %>% 
+      set_units(km^2) %>% 
+      drop_units()) %>%
+  group_by(hexid) %>% 
+  summarize(
+    area_km2 = sum(area_km2),
+    .groups = "drop") %>% 
+  left_join(
+    h2 %>% 
+      mutate(
+        area_km2 = st_area(geometry) %>% 
+          set_units(km^2) %>% 
+          drop_units()) %>% 
+      st_drop_geometry() %>% 
+      select(hexid, area_km2_whole = area_km2),
+    by = "hexid") %>% 
+  mutate(
+    hexpct = area_km2 / area_km2_whole) # 2,801 × 5
+
+
+# 1	hexid 	820037fffffffff 
+# 2	area_km2 	156658.94 
+# 3	geometry 	sfc_POLYGON 
+# 4	area_km2_whole 	26109.82 
+# 5	hexpct 	6 
+
+b2 <- z %>% 
+  filter(hexid == "820037fffffffff")
+mapview(b2)
+
+b4ids <- z %>% 
+  filter(hexid == "820037fffffffff") %>% 
+  st_drop_geometry() %>% 
+  pull(hexid4)
+
+b4 <- h4 %>% 
+  filter(hexid %in% b4ids) 
+
+
+mapview(b2) +
+  mapview(b4)
+
+h2 %>% 
+  select(hexid) %>% 
+  st_join(
+    y %>% select(hexid4=hexid), left=F) %>% # 59,842 × 4
+  filter(hexid == "820037fffffffff")
+
+h2 %>% 
+  mutate(
+    area_km2 = st_area(geometry) %>% 
+      set_units(km^2) %>% 
+      drop_units()) %>% 
+  st_drop_geometry() %>% 
+  select(hexid, area_km2_whole = area_km2) %>% 
+  filter(hexid == "820037fffffffff")
+
+26110
+
+mapview(z[1:3,])
+summary(h2$area_km2)
+summary(h4$area_km2)
+hist(z$hexpct)
+
+    # 59,842 × 15
+
+
+x <- st_intersects(h2, y)
+x %>% lengths > 0
+class(x)
+tibble(x) %>% 
+  mutate()
+
+h2 %>% 
+  cbind()
+  
+
+# Calculate area and tidy up
+x_f <- st_intersects(h2, y, sparse=F)
+
+x[[2]]
+
+intersect_pct <- 
+   mutate(intersect_area = st_area(.)) %>%   # create new column with shape area
+   dplyr::select(NAME, intersect_area) %>%   # only select columns needed to merge
+   st_drop_geometry()  # drop geometry as we don't need it
+
+
+
+```
+
+```{r}
+# install.packages("remotes")
+remotes::install_github("crazycapivara/h3-r")
+library(h3)
+
+hexid4 <- "8400369ffffffff"
+hexid2 <- "820037fffffffff"
+
+tibble(
+  hexid = hexids) %>% 
+  mutate(
+    hexid2 = map_chr(hexid, h3_to_parent, 2))
 
 ```
 
