@@ -20,11 +20,14 @@ Cumulative sum plots of layers for determining target per layer and allowing wei
 ## Get planning units as hexagons
 
 ```{r pu}
+# remotes::install_github("BenioffOceanInitiative/bbnj")
+# devtools::install_local("../bbnj")
 librarian::shelf(
   BenioffOceanInitiative/bbnj, dplyr, DT,
   exactextractr, fs, ggplot2, glue, here, mapview, 
   prioritizr,
-  purrr, raster, rlang, scales, sf, stringr, tidyr, units)
+  purrr, raster, rlang, scales, sf, stringr, 
+  tibble,  tidyr, units)
 source(here("libs/plots.R"))
 select <- dplyr::select
 mapviewOptions(fgb = FALSE)
@@ -32,6 +35,9 @@ mapviewOptions(
   vector.palette = mapviewPalette("mapviewSpectralColors"))
 # devtools::load_all(here("~/Github/bbest/prioritizr"))
 # devtools::install_local(here("~/Github/bbest/prioritizr"))
+
+#install.packages("/Library/gurobi951/macos_universal2/R/gurobi_9.5-1_R_4.1.1.tgz")
+# copied into /Library/Frameworks/R.framework/Versions/4.2/Resources/library/gurobi
 
 hex_geo <- "data/abnj_hex_res2.geojson"
 # hex_geo <- "data/abnj_hex_res4.geojson"
@@ -230,15 +236,11 @@ datatable(k) %>%
 ```
 
 ```{r plots, results = 'asis'}
-# walk(p, print)
-```
-
-```{r}
-# knitr::opts_chunk$set(eval = F)
+walk(p, print)
 ```
 
 ```{r area: 30% ; targets: 1; weights: 1}
-s_name <- "area: 30% ; targets: 1; weights: 1"
+s_name <- "area: 30% ; targets: max; weights: 1"
 ```
 ## Solution - `r s_name`
 
@@ -248,25 +250,33 @@ a <- 0.3
 
 # feature weights
 f_w <- c(
-  fishing = 1,
-  vgpm    = 1,
-  spp     = 1,
   benthic = 1,
-  scapes  = 1)
+  fishing = 1,
+  scapes  = 1,
+  spp     = 1,
+  vgpm    = 1)
+f_w <- f_w[sort(names(f_w))]
+
+# feature targets (max proportion given ocean area)
+f_t <- k %>% 
+  filter(pct_area == !!a) %>% 
+  select(var, pct_val) %>% 
+  arrange(var) %>% 
+  deframe()
 
 # problem ----
 p <- pu_f %>% 
   problem(features = names(f_w), cost_column = "area_pct") %>%
   add_min_shortfall_objective(a) %>% 
-  add_relative_targets(1) %>%
+  add_relative_targets(f_t) %>%
   add_feature_weights(f_w)
   
 # solve ----
 s <- solve(p, force = T)
 
-mapview(s %>% filter(solution_1==1), layer.name = s_name)
+# mapview(s %>% filter(solution_1==1), layer.name = s_name)
 
-gmap(s, "solution_1", s_name)
+# gmap(s, "solution_1", s_name)
 
 s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
 
@@ -275,10 +285,14 @@ s_cov <- eval_target_coverage_summary(p, s[, "solution_1"])
 datatable(s_cov)
 ```
 
+So `scapes` target met, whereas `benthic` has highest shortfall of 16.9% shortfall.
+
 ```{r area: 30% ; targets: 1; weights: spp*5}
-s_name <- "area: 30% ; targets: 1; weights: spp*5"
+s_name <- "area: 30% ; targets: max; weights: ∆ benthic"
 ```
 ## Solution - `r s_name`
+
+Let's ensure similar results.
 
 ```{r}
 # ocean area
@@ -286,17 +300,18 @@ a <- 0.3
 
 # feature weights
 f_w <- c(
+  benthic = 0.1,
   fishing = 1,
-  vgpm    = 1,
-  spp     = 5,
-  benthic = 1,
-  scapes  = 1)
+  scapes  = 1,
+  spp     = 1,
+  vgpm    = 1)
+f_w <- f_w[sort(names(f_w))]
 
 # problem ----
 p <- pu_f %>% 
   problem(features = names(f_w), cost_column = "area_pct") %>%
   add_min_shortfall_objective(a) %>% 
-  add_relative_targets(1) %>%
+  add_relative_targets(f_t) %>%
   add_feature_weights(f_w)
   
 # solve ----
@@ -304,7 +319,7 @@ s <- solve(p, force = T)
 
 #mapview(s %>% filter(solution_1==1), layer.name = "solution")
 
-gmap(s, "solution_1", s_name)
+# gmap(s, "solution_1", s_name)
 
 # s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
 
@@ -313,11 +328,26 @@ s_cov <- eval_target_coverage_summary(p, s[, "solution_1"])
 datatable(s_cov)
 ```
 
-```{r area: 30%; targets: 99% of max; weights: spp*5}
-s_name <- "area: 30%; targets: 99% of max; weights: spp*5"
+`f_w.benthic`: shortfall
+
+- 0.1: 29.4%
+- 1: 16.9%
+- 2: 7.8%
+- 4: 2.1%
+- 10: 0.0453%
+- 100: 0.0453%
+- 1000: 0%
+
+```{r OLD...}
+# turn off subsequent chunks
+knitr::opts_chunk$set(eval = F, echo = F)
 ```
 
-## Solution - `r s_name`
+```{r area: 30%; targets: 99% of max; weights: spp*5}
+s_name <- "area: 30%; targets: 99% of max; weights: spp*5"
+
+# ## Solution - `r s_name`
+```
 
 ```{r}
 # ocean area
@@ -361,8 +391,9 @@ datatable(s_cov)
 
 ```{r area: 30%; targets: 90% of max; weights: spp*5}
 s_name <- "area: 30%; targets: 90% of max; weights: spp*5"
+
+# ## Solution - `r s_name`
 ```
-## Solution - `r s_name`
 
 ```{r}
 # ocean area
