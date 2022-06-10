@@ -1,5 +1,5 @@
 ---
-title: "Solutions 4 - rescale"
+title: "Solutions for 5 layer scenarios"
 output:
   html_document:
     toc: true
@@ -22,6 +22,7 @@ Cumulative sum plots of layers for determining target per layer and allowing wei
 ```{r pu}
 # remotes::install_github("BenioffOceanInitiative/bbnj")
 # devtools::install_local("../bbnj")
+# remotes::install_github("crazycapivara/h3-r")
 librarian::shelf(
   BenioffOceanInitiative/bbnj, dplyr, DT,
   exactextractr, fs, ggplot2, glue, h3, here, mapview, 
@@ -242,235 +243,278 @@ datatable(k) %>%
 
 ```{r}
 wts <- c(0.1, 1, 10)
-f_ws <- expand_grid(
+s_configs <- expand_grid(
   area    = c(0.3, 0.5),
   benthic = wts,
   fishing = wts,
   scapes  = wts,
   spp     = wts,
-  vgpm    = wts) %>% 
-  mutate(
-    scenario = glue(
-      "area{area}_benthic{benthic}_fishing{fishing}_scapes{scapes}_spp{spp}_vgpm{vgpm}")) %>% 
-  relocate(scenario)
-f_ws %>% 
-  select(-scenario) %>% 
+  vgpm    = wts)
+
+s_configs %>% 
   datatable()
 ```
 
+## Calculate Scenarios
+
 ```{r}
-get_scenario <- function(area, fishing, benthic, scapes, vgpm, spp, ...){
+get_scenario <- function(area, benthic, fishing, scapes, spp, vgpm, redo=F, ...){
   
-  # ocean area
-  a <- area
+  o_rds <- here(glue(paste0(
+      "data/scenarios/",
+      "area{area}_",
+      "benthic{benthic}_fishing{fishing}_scapes{scapes}_spp{spp}_vgpm{vgpm}",
+      ".rds")))
   
-  # feature weights
-  f_w <- c(
-    benthic = benthic,
-    fishing = fishing,
-    scapes  = scapes,
-    spp     = spp,
-    vgpm    = vgpm)
-  f_w <- f_w[sort(names(f_w))]
+  if (file.exists(o_rds) & !redo){
+    o <- readRDS(o_rds)
+  } else {
   
-  # feature targets (max proportion given ocean area)
-  f_t <- k %>% 
-    filter(pct_area == !!a) %>% 
-    select(var, pct_val) %>% 
-    arrange(var) %>% 
-    deframe()
-  
-  # problem ----
-  p <- pu_f %>% 
-    problem(features = names(f_w), cost_column = "area_pct") %>%
-    add_min_shortfall_objective(a) %>% 
-    add_relative_targets(f_t) %>%
-    add_feature_weights(f_w)
+    # feature weights
+    f_w <- c(
+      benthic = benthic,
+      fishing = fishing,
+      scapes  = scapes,
+      spp     = spp,
+      vgpm    = vgpm)
+    f_w <- f_w[sort(names(f_w))]
     
-  # solve ----
-  s <- solve(p, force = T)
+    # feature targets (max proportion given ocean area)
+    f_t <- k %>% 
+      filter(pct_area == !!area) %>% 
+      select(var, pct_val) %>% 
+      arrange(var) %>% 
+      deframe()
+    
+    # problem
+    p <- pu_f %>% 
+      problem(features = names(f_w), cost_column = "area_pct") %>%
+      add_min_shortfall_objective(area) %>% 
+      add_relative_targets(f_t) %>%
+      add_feature_weights(f_w)
+      
+    # solve
+    s <- solve(p, force = T)
+    
+    hexids <- s %>% filter(solution_1==1) %>% pull(hexid)
+    
+    # calcuate actual area of solution
+    # area_pct <- s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
+    
+    # calculate feature representation statistics based on the prioritization
+    coverage <- eval_target_coverage_summary(p, s[, "solution_1"]) %>% 
+      select(feature, relative_held)
+    
+    o <- list(
+      area_pct = area,
+      weights  = f_w,
+      hexids   = hexids,
+      coverage = coverage)
+    
+    saveRDS(o, o_rds)
+  }
   
-  # mapview(s %>% filter(solution_1==1), layer.name = s_name)
+  # quick fixes
+  # names(o)[4] = "coverage"
+  # saveRDS(o, o_rds)
   
-  # gmap(s, "solution_1", s_name)
-  
-  hexids <- s %>% filter(solution_1==1) %>% pull(hexid)
-  
-  area_pct <- s %>% filter(solution_1==1) %>% pull(area_pct) %>% sum()
-  
-  # calculate feature representation statistics based on the prioritization
-  features <- eval_target_coverage_summary(p, s[, "solution_1"]) %>% 
-    select(feature, relative_held)
-  
-  list(
-    area_pct = a,
-    weights  = f_w,
-    hexids   = hexids,
-    features = features)
+  c(path_rds = o_rds,
+    o)
 }
 
-z <- f_ws %>% 
-  slice(1,10,100,300,400) %>%  # TODO: run for ALL
-  pmap(get_scenario)
+t0 <- Sys.time()
+s_lst <- s_configs %>% 
+  pmap(get_scenario) # 38.3 min / 486 scenarios = 4.8 sec each
+Sys.time() - t0
 
-d <- tibble(
-  s = z) %>% 
+S <- tibble(
+  s = s_lst) %>% 
+  rowid_to_column("sid") %>% 
   mutate(
-    scenario = map(s, function(x){
-      tibble(area = x$area_pct) %>% 
+    scenario = map(s, function(s){
+      tibble(area = s$area_pct) %>% 
         cbind(
-          enframe(x$weights) %>% pivot_wider())
-    }),
+          enframe(s$weights) %>% pivot_wider()) }),
     hexres   = hex_res,
     hexpct   = 1,
     hexid    = map(s, "hexids"),
-    features = map(s, "features"))
+    coverage = map(s, "coverage"))
 
-d %>% 
-  select(scenario, hexres, hexid, hexpct) %>% 
-  unnest(c(scenario, hexid)) %>% 
-  write_csv("data/solution_hexids.csv")
+# write all solutions to gdrive
+dir_gdata <- "/Users/bbest/My Drive/projects/bbnj-app/data"
 
-d %>% 
-  select(scenario, features) %>% 
-  unnest(c(scenario, features)) %>% 
-  write_csv("data/solution_features.csv")
+s_params <- S %>% 
+  select(sid, scenario) %>% 
+  unnest(scenario)
+write_csv(s_params, glue("{dir_gdata}/solution_params.csv"))
+write_csv(s_params, here(glue("data/solution_params.csv")))
 
-h4 <- readRDS(glue("data/abnj_hex_res4_area.rds")) # 129,906 × 8
-h2 <- readRDS(glue("data/abnj_hex_res2_area.rds")) #   3,120 × 8
+S %>% 
+  select(sid, hexres, hexid, hexpct) %>% 
+  unnest(hexid) %>% 
+  write_csv(glue("{dir_gdata}/solution_hexids_res{hex_res}.csv"))
 
-hexids <- read_csv("data/solution_hexids.csv") %>% 
-  filter(
-    area == 0.3, 
-    benthic == 0.1, fishing == 0.1, scapes == 0.1, spp == 0.1, vgpm == 0.1,
-    hexres == 4) %>% 
-  pull(hexid)
+S %>% 
+  select(sid, coverage) %>% 
+  unnest(coverage) %>% 
+  write_csv(glue("{dir_gdata}/solution_coverage.csv"))
 
-rda <- "data/scenario_5layers.RData"
-# save.image(file = rda)
-load(rda)
+# write 10 examples for showing in Github
+set.seed(42)
+sid10 <- sample(S$sid, 10)
+S10 <- S %>% 
+  filter(sid %in% sid10)
 
-y <- h4 %>%
-  filter(hexid %in% hexids) # 42,675 × 8
-#   st_union()
+S10 %>% 
+  select(sid, scenario) %>% 
+  unnest(scenario) %>% 
+  write_csv(here(glue("data/sample10/solution_params.csv")))
 
-hexids
+S10 %>% 
+  select(sid, hexres, hexid, hexpct) %>% 
+  unnest(hexid) %>% 
+  write_csv(here(glue("data/sample10/solution_hexids_res{hex_res}.csv")))
 
-tibble(
-  hexid = hexids) %>% 
-  mutate(
-    hexid2 = map_chr(hexid, h3_to_parent, 2))
+S10 %>% 
+  select(sid, coverage) %>% 
+  unnest(coverage) %>% 
+  write_csv(here("data/sample10/solution_coverage.csv"))
+```
 
-z <- h2 %>% 
-  select(hexid) %>% 
-  st_join(
-    y %>% select(hexid4=hexid), left=F) %>% # 59,842 × 4
-  mutate(
-    area_km2 = st_area(geometry) %>% 
-      set_units(km^2) %>% 
-      drop_units()) %>%
-  group_by(hexid) %>% 
-  summarize(
-    area_km2 = sum(area_km2),
-    .groups = "drop") %>% 
-  left_join(
-    h2 %>% 
-      mutate(
-        area_km2 = st_area(geometry) %>% 
-          set_units(km^2) %>% 
-          drop_units()) %>% 
-      st_drop_geometry() %>% 
-      select(hexid, area_km2_whole = area_km2),
-    by = "hexid") %>% 
-  mutate(
-    hexpct = area_km2 / area_km2_whole) # 2,801 × 5
+## Aggregate to coarser hexagons and calculate percent contained
 
+```{r}
+# get_hex <- function(res=4){
+#   read_sf(glue("data/abnj_hex_res{res}.geojson")) %>% 
+#   filter(st_is_valid(.)) %>% 
+#   mutate(
+#     area_km2 = st_area(geometry) %>% 
+#       set_units(km^2) %>% 
+#       drop_units())
+# }
+# h4 <- get_hex(4)
+# h3 <- get_hex(3)
+# h2 <- get_hex(2)
 
-# 1	hexid 	820037fffffffff 
-# 2	area_km2 	156658.94 
-# 3	geometry 	sfc_POLYGON 
-# 4	area_km2_whole 	26109.82 
-# 5	hexpct 	6 
-
-b2 <- z %>% 
-  filter(hexid == "820037fffffffff")
-mapview(b2)
-
-b4ids <- z %>% 
-  filter(hexid == "820037fffffffff") %>% 
-  st_drop_geometry() %>% 
-  pull(hexid4)
-
-b4 <- h4 %>% 
-  filter(hexid %in% b4ids) 
-
-
-mapview(b2) +
-  mapview(b4)
-
-h2 %>% 
-  select(hexid) %>% 
-  st_join(
-    y %>% select(hexid4=hexid), left=F) %>% # 59,842 × 4
-  filter(hexid == "820037fffffffff")
-
-h2 %>% 
+h4 <- read_sf(glue("data/abnj_hex_res4.geojson")) %>% 
+  filter(st_is_valid(.)) %>% 
   mutate(
     area_km2 = st_area(geometry) %>% 
       set_units(km^2) %>% 
       drop_units()) %>% 
-  st_drop_geometry() %>% 
-  select(hexid, area_km2_whole = area_km2) %>% 
-  filter(hexid == "820037fffffffff")
-
-26110
-
-mapview(z[1:3,])
-summary(h2$area_km2)
-summary(h4$area_km2)
-hist(z$hexpct)
-
-    # 59,842 × 15
-
-
-x <- st_intersects(h2, y)
-x %>% lengths > 0
-class(x)
-tibble(x) %>% 
-  mutate()
-
-h2 %>% 
-  cbind()
-  
-
-# Calculate area and tidy up
-x_f <- st_intersects(h2, y, sparse=F)
-
-x[[2]]
-
-intersect_pct <- 
-   mutate(intersect_area = st_area(.)) %>%   # create new column with shape area
-   dplyr::select(NAME, intersect_area) %>%   # only select columns needed to merge
-   st_drop_geometry()  # drop geometry as we don't need it
-
-
-
-```
-
-```{r}
-# install.packages("remotes")
-remotes::install_github("crazycapivara/h3-r")
-library(h3)
-
-hexid4 <- "8400369ffffffff"
-hexid2 <- "820037fffffffff"
-
-tibble(
-  hexid = hexids) %>% 
+  select(hexid, area_km2) %>%
+  rename(
+    hexid4 = hexid, 
+    area4  = area_km2) %>% 
   mutate(
-    hexid2 = map_chr(hexid, h3_to_parent, 2))
+    hexid3 = map_chr(hexid4, h3_to_parent, 3),
+    hexid2 = map_chr(hexid3, h3_to_parent, 2)) %>% 
+# h0 <- h4
+# h4 <- h4 %>% 
+  st_drop_geometry()
 
+h3 <- h4 %>% 
+  st_drop_geometry() %>% 
+  group_by(hexid3) %>% 
+  summarize(
+    area3 = sum(area4))
+
+h2 <- h4 %>% 
+  st_drop_geometry() %>% 
+  group_by(hexid2) %>% 
+  summarize(
+    area2 = sum(area4))
+
+s4_csv <- glue("{dir_gdata}/solution_hexids_res4.csv")
+s3_csv <- glue("{dir_gdata}/solution_hexids_res3.csv")
+s2_csv <- glue("{dir_gdata}/solution_hexids_res2.csv")
+
+s4 <- read_csv(s4_csv) %>% 
+  left_join(
+    h4, 
+    by = c(hexid = "hexid4"))
+
+s3 <- s4 %>% 
+  group_by(sid, hexid3) %>% 
+  summarize(
+    area4 = sum(area4),
+    .groups = "drop") %>% 
+  left_join(
+    h3,
+    by = "hexid3") %>% 
+  mutate(
+    hexres = 3,
+    hexpct = area4/area3) %>% 
+  select(sid, hexres, hexid=hexid3, hexpct)
+write_csv(s3, s3_csv)
+
+s3 %>% 
+  filter(sid %in% sid10) %>% 
+  write_csv(here(glue("data/sample10/solution_hexids_res3.csv")))
+
+s2 <- s4 %>% 
+  group_by(sid, hexid2) %>% 
+  summarize(
+    area4 = sum(area4),
+    .groups = "drop") %>% 
+  left_join(
+    h2,
+    by = "hexid2") %>% 
+  mutate(
+    hexres = 2,
+    hexpct = area4/area2) %>% 
+  select(sid, hexres, hexid=hexid2, hexpct)
+write_csv(s2, s2_csv)
+
+s2 %>% 
+  filter(sid %in% sid10) %>% 
+  write_csv(here(glue("data/sample10/solution_hexids_res2.csv")))
 ```
 
+## Summary of outputs
 
+Hi [\@mccahan](https://legendco.slack.com/team/U4HQRMYPP), I made **solutions** (n=486) for every combination of the following parameters, given by percent high seas ocean area and target conservation features (n=5):
 
+-   **area**: 30% (0.3) or 50% (0.5)
+
+    -   `area`: percent ocean area;
+
+-   **features**: low (0.1), medium (1) or high (10)
+
+    -   `benthic`: benthic features: seamounts + hydrothermal vents
+
+    -   `fishing`: inverse of kilowatt hours fished; i.e. avoid highly fished areas
+
+    -   `scapes`: seascapes; i.e. heterogeneity of seafloor
+
+    -   `spp`: species importance given by species richness \* species extinction risk
+
+    -   `vgpm`: primary productivity, given by the Vertically Generalized Production Model
+
+Outputs can be found here in [bbnj-app/data/ - Google Drive](https://drive.google.com/drive/u/0/folders/1dbobDmaxZs4T9wUcFnZ3AboNXcEusDdU):\
+
+-   spatial hexagons unique by `hexid`:
+
+    -   `hex_res4.geojson`(88 mb): resolution 4 (\~ 41 km width)
+
+    -   `hex_res3.geojson`(33 mb): resolution 3 (\~ 107 km width)
+
+    -   `hex_res2.geojson`(24 mb): resolution 2 (\~ 266 km width)
+
+-   input parameters:
+
+    -   `solution_params.csv`(11 kb): unique parameter values of area and features, identified by integer scenario id (`sid`)
+
+-   output hexagons (`hexid`)  included in each scenario (`sid`):
+
+    -   `solution_hexids_res4.csv`(605 mb): finest resolution that acted as fundamental planning unit in prioritization, so percentage always 100% (`hexpct`: 1)
+
+    -   `solution_hexids_res3.csv`(179 mb): medium resolution hexagon aggregated to see when zoomed out (`hexpct`: ≤1)
+
+    -   `solution_hexids_res2.csv`(45 mb): coarsest resolution of aggregation for when fully zoomed out (`hexpct`: ≤1)
+
+-   feature coverage:
+
+    -   `solution_coverage.csv`(69 kb): percent held per feature (n=5) for each scenario (`sid`)
+
+I'll work on a prototype app to crudely display these results from slider inputs, then work on varying subtaxa within species.
