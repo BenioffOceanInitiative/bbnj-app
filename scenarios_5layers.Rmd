@@ -477,7 +477,7 @@ Hi [\@mccahan](https://legendco.slack.com/team/U4HQRMYPP), I made **solutions** 
 
 -   **area**: 30% (0.3) or 50% (0.5)
 
-    -   `area`: percent ocean area;
+    -   `area`: percent ocean area
 
 -   **features**: low (0.1), medium (1) or high (10)
 
@@ -487,34 +487,34 @@ Hi [\@mccahan](https://legendco.slack.com/team/U4HQRMYPP), I made **solutions** 
 
     -   `scapes`: seascapes; i.e. heterogeneity of seafloor
 
-    -   `spp`: species importance given by species richness \* species extinction risk
+    -   `spp`: species importance, given by species richness \* species extinction risk
 
     -   `vgpm`: primary productivity, given by the Vertically Generalized Production Model
 
-Outputs can be found here in [bbnj-app/data/ - Google Drive](https://drive.google.com/drive/u/0/folders/1dbobDmaxZs4T9wUcFnZ3AboNXcEusDdU):\
+Outputs can be found here in [bbnj-app/data/ - Google Drive](https://drive.google.com/drive/u/0/folders/1dbobDmaxZs4T9wUcFnZ3AboNXcEusDdU):
 
 -   spatial hexagons unique by `hexid`:
 
-    -   `hex_res4.geojson`(88 mb): resolution 4 (\~ 41 km width)
+    -   `hex_res4.geojson` (88 mb): resolution 4 (\~ 41 km width)
 
-    -   `hex_res3.geojson`(33 mb): resolution 3 (\~ 107 km width)
+    -   `hex_res3.geojson` (33 mb): resolution 3 (\~ 107 km width)
 
-    -   `hex_res2.geojson`(24 mb): resolution 2 (\~ 266 km width)
+    -   `hex_res2.geojson` (24 mb): resolution 2 (\~ 266 km width)
 
 -   input parameters:
 
-    -   `solution_params.csv`(11 kb): unique parameter values of area and features, identified by integer scenario id (`sid`)
+    -   `solution_params.csv` (11 kb): unique parameter values of area and features, identified by integer scenario id (`sid`)
 
 -   output hexagons (`hexid`)  included in each scenario (`sid`):
 
-    -   `solution_hexids_res4.csv`(605 mb): finest resolution that acted as fundamental planning unit in prioritization, so percentage always 100% (`hexpct`: 1)
+    -   `solution_hexids_res4.csv` (605 mb): finest resolution that acted as fundamental planning unit in prioritization, so percentage always 100% (`hexpct`: 1)
 
-    -   `solution_hexids_res3.csv`(179 mb): medium resolution hexagon aggregated to see when zoomed out (`hexpct`: ≤1)
+    -   `solution_hexids_res3.csv` (179 mb): medium resolution hexagon aggregated to see when zoomed out (`hexpct`: ≤1)
 
-    -   `solution_hexids_res2.csv`(45 mb): coarsest resolution of aggregation for when fully zoomed out (`hexpct`: ≤1)
+    -   `solution_hexids_res2.csv` (45 mb): coarsest resolution of aggregation for when fully zoomed out (`hexpct`: ≤1)
 
 -   feature coverage:
 
-    -   `solution_coverage.csv`(69 kb): percent held per feature (n=5) for each scenario (`sid`)
+    -   `solution_coverage.csv` (69 kb): percent held per feature (n=5) for each scenario (`sid`)
 
 I'll work on a prototype app to crudely display these results from slider inputs, then work on varying subtaxa within species.
