@@ -10,46 +10,132 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Load csv/geo into database tables
+
 ```{r}
+# TODO:
+# - create indexes: sol_hex#.sid, sol_hex#.hexid
+
+# libraries ----
 librarian::shelf(
-  glue, here, leaflet, readr, sf)
+  glue, here, leaflet, purrr, readr, sf)
 options(readr.show_col_types = F)
 source(here("libs/db.R"))
 
-# plot(hex_res2["hexid"])
+# variables ----
+dir_data    <- "/share/data/bbnj"
+resolutions <- 2:4
+redo        <- FALSE
 
-# enable PostGIS once: 
+tbls <- dbListTables(con)
+
+# load non-spatial tables ----
+csvs <- tribble(
+  ~tbl,         ~csv,
+  "sol_cover",  glue("{dir_data}/solution_coverage.csv"),
+  "sol_params", glue("{dir_data}/solution_params.csv"))
+
+load_csv <- function(tbl, csv, redo=F, ...){
+  if (all(tbl %in% dbListTables(con), !redo))
+    return(NA)
+  
+  tbls <- dbListTables(con)
+  
+  if (tbl %in% tbls)
+    dbRemoveTable(con, tbl)
+  
+  read_csv(csv) %>% 
+  dbWriteTable(con, tbl, .)
+}
+csvs %>% 
+  pwalk(load_csv, redo=redo)
+
+# add indices
+dbSendQuery(
+  con, 
+  glue(
+    "CREATE UNIQUE INDEX IF NOT EXISTS sol_params_idx ON sol_params (sid);"))
+dbSendQuery(
+  con, 
+  glue(
+    "CREATE UNIQUE INDEX IF NOT EXISTS sol_cover_idx ON sol_cover (sid, feature);"))
+
+
+# load resolution specific tables, especially spatial ----
+
+# once only: enable PostGIS
 # dbSendQuery(con, "CREATE EXTENSION postgis")
 
-dbListTables(con)
+load_res <- function(r, redo=F){ # r = 2
+  h_geo <- glue("{dir_data}/hex_res{r}.geojson")
+  s_csv <- glue("{dir_data}/solution_hexids_res{r}.csv")
+  tbl_h        <- glue("hex_res{r}")
+  tbl_s        <- glue("sol_hex{r}")
+  message(glue("{r}: {tbl_h}, {tbl_s}"))
+          
+  tbls <- dbListTables(con)
+  
+  if (all(tbl_h %in% tbls, tbl_s %in% tbls, !redo))
+    return(NA)
+  
+  if (tbl_h %in% tbls & redo)
+    dbRemoveTable(con, tbl_h)
+  
+  if (tbl_s %in% tbls & redo)
+    dbRemoveTable(con, tbl_s)
 
-# dbRemoveTable(con, "hex_res2")
-write_sf(hex_res2, con, "hex_res2")
+  if (!tbl_s %in% tbls | redo){
+    message(glue(". loading {tbl_s}"))
+    read_csv(s_csv)%>% 
+      dbWriteTable(con, tbl_s, .)
+  }
+  
+  if (!tbl_h %in% tbls | redo){
+    message(glue(". loading {tbl_h}"))
+    read_sf(h_geo) %>% 
+      write_sf(con, tbl_h)
+    
+    # add spatial index
+    dbSendQuery(
+      con, 
+      glue(
+        "CREATE INDEX IF NOT EXISTS {tbl_h}_geometry_idx ON {tbl_h} USING GIST (geometry);"))
+    
+    # set geographic projection for showing up at tile.bbnj.app
+    dbSendQuery(
+      con, 
+      glue(
+        "SELECT UpdateGeometrySRID('{tbl_h}','geometry',4326);"))
+    
+    # add non-spatial indices
+    dbSendQuery(
+      con, 
+      glue(
+        "CREATE UNIQUE INDEX IF NOT EXISTS {tbl_h}_hexid_idx ON {tbl_h} (hexid);"))
+    
+    dbSendQuery(
+      con, 
+      glue(
+        "CREATE UNIQUE INDEX IF NOT EXISTS {tbl_s}_idx ON {tbl_s} (sid, hexid);"))
+  }
+}
+sapply(resolutions, load_res, redo=redo)
+```
 
-# add spatial index
-dbSendQuery(con, "CREATE INDEX IF NOT EXISTS hex_res2_geometry_idx ON hex_res2 USING GIST (geometry);")
-# set geographic projection for showing up at tile.bbnj.app
-dbSendQuery(con, "SELECT UpdateGeometrySRID('hex_res2','geometry',4326);")
+## Test spatial with leaflet map
 
+```{r, eval=F}
+# variables
+r   <- 2 # hexagon resolution
+sid <- 1 # solution identifier
 
-# hex_res2_0 <- hex_res2
-hex_res2 <- read_sf(con, "hex_res2")
-
-
-dir_data   <- "/share/data/bbnj"
-hex_res    <- 2
-hex        <- read_sf(glue("{dir_data}/hex_res{hex_res}.geojson"))
-sol_hex    <- read_csv(glue("{dir_data}/solution_hexids_res{hex_res}.csv"))
-sol_cover  <- read_csv(glue("{dir_data}/solution_coverage.csv"))
-sol_params <- read_csv(glue("{dir_data}/solution_params.csv"))
-
-sid <- 1
+hex     <- read_sf(con, glue("hex_res{r}"))
+sol_hex <- dbReadTable(con, glue("sol_hex{r}"))
 
 h <- hex %>% 
   inner_join(
     sol_hex %>% 
     filter(
-      hexres == hex_res,
       sid == !!sid),
     by = "hexid")
 
@@ -63,6 +149,140 @@ leaflet() %>%
     data = h,
     stroke = F,
     fillColor = ~pal(hexpct), opacity=1)
+```
+
+## Dynamic Hexagons
+
+Original:
+
+* [Tile Serving with Dynamic Geometry](https://www.crunchydata.com/blog/tile-serving-with-dynamic-geometry)
+
+
+### `hexagon()`
+
+```{sql}
+CREATE OR REPLACE FUNCTION
+hexagon(i integer, j integer, edge float8)
+RETURNS geometry
+AS $$
+DECLARE
+h float8 := edge*cos(pi()/6.0);
+cx float8 := 1.5*i*edge;
+cy float8 := h*(2*j+abs(i%2));
+BEGIN
+RETURN ST_MakePolygon(ST_MakeLine(ARRAY[
+    ST_MakePoint(cx - 1.0*edge, cy + 0),
+    ST_MakePoint(cx - 0.5*edge, cy + -1*h),
+    ST_MakePoint(cx + 0.5*edge, cy + -1*h),
+    ST_MakePoint(cx + 1.0*edge, cy + 0),
+    ST_MakePoint(cx + 0.5*edge, cy + h),
+    ST_MakePoint(cx - 0.5*edge, cy + h),
+    ST_MakePoint(cx - 1.0*edge, cy + 0)
+ ]));
+END;
+$$
+LANGUAGE 'plpgsql'
+IMMUTABLE
+STRICT
+PARALLEL SAFE;
+```
+
+### `hexagoncoordinates()`
+
+```{sql}
+CREATE OR REPLACE
+FUNCTION hexagoncoordinates(bounds geometry, edge float8,
+                            OUT i integer, OUT j integer)
+RETURNS SETOF record
+AS $$
+    DECLARE
+        h float8 := edge*cos(pi()/6);
+        mini integer := floor(st_xmin(bounds) / (1.5*edge));
+        minj integer := floor(st_ymin(bounds) / (2*h));
+        maxi integer := ceil(st_xmax(bounds) / (1.5*edge));
+        maxj integer := ceil(st_ymax(bounds) / (2*h));
+    BEGIN
+    FOR i, j IN
+    SELECT a, b
+    FROM generate_series(mini, maxi) a,
+         generate_series(minj, maxj) b
+    LOOP
+       RETURN NEXT;
+    END LOOP;
+    END;
+$$
+LANGUAGE 'plpgsql'
+IMMUTABLE
+STRICT
+PARALLEL SAFE;
 
 ```
+
+
+### `tilehexagons()`
+
+```{sql}
+CREATE OR REPLACE
+FUNCTION tilehexagons(z integer, x integer, y integer, step integer,
+                      OUT geom geometry(Polygon, 3857), OUT i integer, OUT j integer)
+RETURNS SETOF record
+AS $$
+    DECLARE
+        bounds geometry;
+        maxbounds geometry := ST_TileEnvelope(0, 0, 0);
+        edge float8;
+    BEGIN
+    bounds := ST_TileEnvelope(z, x, y);
+    edge := (ST_XMax(bounds) - ST_XMin(bounds)) / pow(2, step);
+    FOR geom, i, j IN
+    SELECT ST_SetSRID(hexagon(h.i, h.j, edge), 3857), h.i, h.j
+    FROM hexagoncoordinates(bounds, edge) h
+    LOOP
+       IF maxbounds ~ geom AND bounds && geom THEN
+            RETURN NEXT;
+         END IF;
+     END LOOP;
+     END;
+$$
+LANGUAGE 'plpgsql'
+IMMUTABLE
+STRICT
+PARALLEL SAFE;
+```
+
+### `public.hexagons()`
+
+```{sql}
+CREATE OR REPLACE
+FUNCTION public.hexagons(z integer, x integer, y integer, step integer default 4)
+RETURNS bytea
+AS $$
+WITH
+bounds AS (
+    -- Convert tile coordinates to web mercator tile bounds
+    SELECT ST_TileEnvelope(z, x, y) AS geom
+ ),
+ rows AS (
+    -- All the hexes that interact with this tile
+    SELECT h.i, h.j, h.geom
+    FROM TileHexagons(z, x, y, step) h
+ ),
+ mvt AS (
+     -- Usual tile processing, ST_AsMVTGeom simplifies, quantizes,
+     -- and clips to tile boundary
+    SELECT ST_AsMVTGeom(rows.geom, bounds.geom) AS geom,
+           rows.i, rows.j
+    FROM rows, bounds
+)
+-- Generate MVT encoding of final input record
+SELECT ST_AsMVT(mvt, 'public.hexagons') FROM mvt
+$$
+LANGUAGE 'sql'
+STABLE
+STRICT
+PARALLEL SAFE;
+
+COMMENT ON FUNCTION public.hexagons IS 'Hex coverage dynamically generated. Step parameter determines how approximately many hexes (2^step) to generate per tile.';
+```
+
 
