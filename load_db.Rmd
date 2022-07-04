@@ -295,33 +295,33 @@ COMMENT ON FUNCTION public.hexagons IS 'Hex coverage dynamically generated. Step
 CREATE OR REPLACE
 FUNCTION tilebbnj(
     z integer, x integer, y integer, 
-    in_area float8, in_benthic float8, in_fishing float8, in_scapes float8, in_spp float8, in_vgpm float8,
+    _area float8, _benthic float8, _fishing float8, _scapes float8, _spp float8, _vgpm float8,
     OUT geom geometry(Polygon, 3857), OUT hexpct float8)
 RETURNS SETOF record
 AS $$
     DECLARE
         bounds geometry;
         maxbounds geometry := ST_TileEnvelope(0, 0, 0);
-        edge float8;
        	r integer;
     BEGIN
     bounds := ST_TileEnvelope(z, x, y);
-    r := 2;
+    r := 2
     FOR geom, hexpct IN
-    SELECT 
-      ST_TRANSFORM(h.geometry, 3857) AS geom, s.hexpct AS hexpct
-    FROM sol_hex2 AS s
-    INNER JOIN hex_res2 h
-    	ON s.hexid = h.hexid
-    INNER JOIN sol_params p 
-    	ON s.sid = p.sid
-    WHERE 
-    	p.area    = in_area AND
-    	p.benthic = in_benthic AND 
-    	p.fishing = in_fishing AND 
-    	p.scapes  = in_scapes AND 
-    	p.spp     = in_spp AND 
-    	p.vgpm    = in_vgpm
+    EXECUTE FORMAT(
+      'SELECT 
+        ST_TRANSFORM(h.geometry, 3857) AS geom, s.hexpct AS hexpct
+      FROM sol_hex%I AS s
+      INNER JOIN hex_res%I h
+      	ON s.hexid = h.hexid
+      INNER JOIN sol_params p 
+      	ON s.sid = p.sid
+      WHERE 
+      	p.area    = _area AND
+      	p.benthic = _benthic AND 
+      	p.fishing = _fishing AND 
+      	p.scapes  = _scapes AND 
+      	p.spp     = _spp AND 
+      	p.vgpm    = _vgpm', r)
     LOOP
        IF maxbounds ~ geom AND bounds && geom THEN
             RETURN NEXT;
@@ -379,7 +379,7 @@ STABLE
 STRICT
 PARALLEL SAFE;
 
--- TEST
+-- test:
 -- SELECT * from bbnj(0,0,0,0.3,1,1,1,1,1);
 ```
 
