@@ -1,0 +1,22 @@
+---
+title: "test"
+author: "Ben Best"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+options(mapbox.accessToken = "pk.eyJ1IjoiYmRiZXN0IiwiYSI6ImNqeTQzcjMzYjE2MnMzb3AyaXBmOWZueG4ifQ.kOxbgvSal1U-3LaYKOo3rw")
+
+librarian::shelf(
+  leaflet, rstudio/leaflet.mapboxgl)
+
+leaflet(quakes) %>%
+  addMapboxGL(style = "mapbox://styles/mapbox/streets-v9") %>%
+  addCircleMarkers(weight = 1, fillOpacity = 0, radius = 3)
+```
+
