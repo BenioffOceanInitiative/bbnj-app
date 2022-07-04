@@ -15,7 +15,8 @@ shinyServer(function(input, output) {
       # add_draw_control() %>% 
       add_source(mapbox_source(
         type = "vector",
-        url  = "mapbox://bdbest.99btin43"),   # hex_res1
+        # url  = "mapbox://bdbest.99btin43"
+        tiles = c("https://tile.bbnj.app/public.hexagons/{z}/{x}/{y}.pbf?step=5")),   # hex_res1
         id   = "src_hexagons") %>%
       add_layer(
         style = list(
