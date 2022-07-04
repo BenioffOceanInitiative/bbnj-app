@@ -294,24 +294,31 @@ COMMENT ON FUNCTION public.hexagons IS 'Hex coverage dynamically generated. Step
 -- drop function tilebbnj;
 CREATE OR REPLACE
 FUNCTION tilebbnj(
-    z integer, x integer, y integer, 
-    _area float8, _benthic float8, _fishing float8, _scapes float8, _spp float8, _vgpm float8,
-    OUT geom geometry(Polygon, 3857), OUT hexpct float8)
+  z integer, x integer, y integer, 
+  _area float8, _benthic float8, _fishing float8, _scapes float8, _spp float8, _vgpm float8,
+  OUT geom geometry(Polygon, 3857), OUT hexpct float8)
 RETURNS SETOF record
 AS $$
-    DECLARE
-        bounds geometry;
-        maxbounds geometry := ST_TileEnvelope(0, 0, 0);
-       	r integer;
-    BEGIN
-    bounds := ST_TileEnvelope(z, x, y);
-    r := 2
-    FOR geom, hexpct IN
-    EXECUTE FORMAT(
-      'SELECT 
+  DECLARE
+    bounds geometry;
+    maxbounds geometry := ST_TileEnvelope(0, 0, 0);
+   	r integer;
+   	tbl_sol string;
+	  tbl_hex string;
+  BEGIN
+  bounds := ST_TileEnvelope(z, x, y);
+  r := '2'
+  tbl_sol := 'sol_hex2'
+  tbl_hex := 'hex_res2'
+    
+  EXECUTE format('SELECT count(*) FROM %I '
+   'WHERE inserted_by = $1 AND inserted <= $2', tabname)
+	FOR geom, hexpct IN    
+     EXECUTE format('
+			SELECT 
         ST_TRANSFORM(h.geometry, 3857) AS geom, s.hexpct AS hexpct
-      FROM sol_hex%I AS s
-      INNER JOIN hex_res%I h
+      FROM %I AS s', tbl_sol)
+      INNER JOIN hex_res2 AS h
       	ON s.hexid = h.hexid
       INNER JOIN sol_params p 
       	ON s.sid = p.sid
@@ -321,13 +328,13 @@ AS $$
       	p.fishing = _fishing AND 
       	p.scapes  = _scapes AND 
       	p.spp     = _spp AND 
-      	p.vgpm    = _vgpm', r)
-    LOOP
-       IF maxbounds ~ geom AND bounds && geom THEN
-            RETURN NEXT;
-       END IF;
-    END LOOP;
-    END;
+      	p.vgpm    = _vgpm
+	    LOOP
+	       IF maxbounds ~ geom AND bounds && geom THEN
+	            RETURN NEXT;
+	       END IF;
+	    END LOOP;
+      END;
 $$
 LANGUAGE 'plpgsql'
 IMMUTABLE
