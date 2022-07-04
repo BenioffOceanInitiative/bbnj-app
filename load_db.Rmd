@@ -151,12 +151,9 @@ leaflet() %>%
     fillColor = ~pal(hexpct), opacity=1)
 ```
 
-## Dynamic Hexagons
+## Dynamic Hexagons, CrunchyData 
 
-Original:
-
-* [Tile Serving with Dynamic Geometry](https://www.crunchydata.com/blog/tile-serving-with-dynamic-geometry)
-
+* [Tile Serving with Dynamic Geometry | CrunchyData](https://www.crunchydata.com/blog/tile-serving-with-dynamic-geometry)
 
 `public.hexagons()` -> `tilehexagons()` -> `hexagoncoordinates()` -> `hexagon()`
 
@@ -286,4 +283,107 @@ PARALLEL SAFE;
 COMMENT ON FUNCTION public.hexagons IS 'Hex coverage dynamically generated. Step parameter determines how approximately many hexes (2^step) to generate per tile.';
 ```
 
+
+## Dynamic Hexagons, BBNJ 
+
+`public.bbnj()` -> `tilebbnj()`
+
+### `tilebbnj()`
+
+```{sql}
+-- drop function tilebbnj;
+CREATE OR REPLACE
+FUNCTION tilebbnj(
+    z integer, x integer, y integer, 
+    in_area float8, in_benthic float8, in_fishing float8, in_scapes float8, in_spp float8, in_vgpm float8,
+    OUT geom geometry(Polygon, 3857), OUT hexpct float8)
+RETURNS SETOF record
+AS $$
+    DECLARE
+        bounds geometry;
+        maxbounds geometry := ST_TileEnvelope(0, 0, 0);
+        edge float8;
+       	r integer;
+    BEGIN
+    bounds := ST_TileEnvelope(z, x, y);
+    r := 2;
+    FOR geom, hexpct IN
+    SELECT 
+      ST_TRANSFORM(h.geometry, 3857) AS geom, s.hexpct AS hexpct
+    FROM sol_hex2 AS s
+    INNER JOIN hex_res2 h
+    	ON s.hexid = h.hexid
+    INNER JOIN sol_params p 
+    	ON s.sid = p.sid
+    WHERE 
+    	p.area    = in_area AND
+    	p.benthic = in_benthic AND 
+    	p.fishing = in_fishing AND 
+    	p.scapes  = in_scapes AND 
+    	p.spp     = in_spp AND 
+    	p.vgpm    = in_vgpm
+    LOOP
+       IF maxbounds ~ geom AND bounds && geom THEN
+            RETURN NEXT;
+       END IF;
+    END LOOP;
+    END;
+$$
+LANGUAGE 'plpgsql'
+IMMUTABLE
+STRICT
+PARALLEL SAFE;
+
+-- TEST
+-- SELECT * from tilebbnj(0,0,0,0.5,1.0,1.0,1.0,1.0,1.0);
+```
+
+### `public.bbnj()`
+
+```{sql}
+CREATE OR REPLACE
+FUNCTION public.bbnj(
+  z integer, x integer, y integer, 
+  area float8 default 0.3, 
+  benthic float8 default 1, 
+  fishing float8 default 1, 
+  scapes float8 default 1, 
+  spp float8 default 1, 
+  vgpm float8 default 1)
+RETURNS bytea
+AS $$
+WITH
+bounds AS (
+    -- Convert tile coordinates to web mercator tile bounds
+    SELECT ST_TileEnvelope(z, x, y) AS geom
+ ),
+ rows AS (
+    -- All the hexes that interact with this tile
+    SELECT h.hexpct, h.geom
+    FROM tilebbnj(
+        z, x, y, 
+        area, benthic, fishing, scapes, spp, vgpm) h
+ ),
+ mvt AS (
+     -- Usual tile processing, ST_AsMVTGeom simplifies, quantizes,
+     -- and clips to tile boundary
+    SELECT ST_AsMVTGeom(rows.geom, bounds.geom) AS geom,
+           rows.hexpct
+    FROM rows, bounds
+)
+-- Generate MVT encoding of final input record
+SELECT ST_AsMVT(mvt, 'public.bbnj') FROM mvt
+$$
+LANGUAGE 'sql'
+STABLE
+STRICT
+PARALLEL SAFE;
+
+-- TEST
+-- SELECT * from bbnj(0,0,0,0.3,1,1,1,1,1);
+```
+
+```{sql}
+COMMENT ON FUNCTION public.bbnj IS 'BBNJ solutions as dynamically rendered vector tiles. TODO: describe parameters: area, benthic, fishing, scapes, spp, vgpm.';
+```
 
