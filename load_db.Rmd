@@ -1,0 +1,68 @@
+---
+title: "load_db"
+output: html_document
+date: '2022-06-22'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+librarian::shelf(
+  glue, here, leaflet, readr, sf)
+options(readr.show_col_types = F)
+source(here("libs/db.R"))
+
+# plot(hex_res2["hexid"])
+
+# enable PostGIS once: 
+# dbSendQuery(con, "CREATE EXTENSION postgis")
+
+dbListTables(con)
+
+# dbRemoveTable(con, "hex_res2")
+write_sf(hex_res2, con, "hex_res2")
+
+# add spatial index
+dbSendQuery(con, "CREATE INDEX IF NOT EXISTS hex_res2_geometry_idx ON hex_res2 USING GIST (geometry);")
+# set geographic projection for showing up at tile.bbnj.app
+dbSendQuery(con, "SELECT UpdateGeometrySRID('hex_res2','geometry',4326);")
+
+
+# hex_res2_0 <- hex_res2
+hex_res2 <- read_sf(con, "hex_res2")
+
+
+dir_data   <- "/share/data/bbnj"
+hex_res    <- 2
+hex        <- read_sf(glue("{dir_data}/hex_res{hex_res}.geojson"))
+sol_hex    <- read_csv(glue("{dir_data}/solution_hexids_res{hex_res}.csv"))
+sol_cover  <- read_csv(glue("{dir_data}/solution_coverage.csv"))
+sol_params <- read_csv(glue("{dir_data}/solution_params.csv"))
+
+sid <- 1
+
+h <- hex %>% 
+  inner_join(
+    sol_hex %>% 
+    filter(
+      hexres == hex_res,
+      sid == !!sid),
+    by = "hexid")
+
+pal <- colorNumeric(
+  palette = "Greens",
+  domain = c(0,1))
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.TonerLite) %>% 
+  addPolygons(
+    data = h,
+    stroke = F,
+    fillColor = ~pal(hexpct), opacity=1)
+
+```
+

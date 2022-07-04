@@ -2,16 +2,39 @@
 if (!require("librarian"))
   install.packages("librarian")
 librarian::shelf(
-  deckgl, dplyr, here, 
+  # deckgl, 
+  dplyr, here, 
   shiny, shinyBS, shinydashboard)
 
-# h3 hex data
-sf_h3_url <- "https://raw.githubusercontent.com/uber-common/deck.gl-data/master/website/sf.h3clusters.json"
-# sf_h3 <- jsonlite::fromJSON(sf_h3_url, simplifyDataFrame = FALSE)
-# listviewer::jsonedit(sf_h3)
+dir_data   <- "/share/data/bbnj"
+hex_res    <- 2
+hex        <- read_sf(glue("{dir_data}/hex_res{hex_res}.geojson"))
+sol_hex    <- read_csv(glue("{dir_data}/solution_hexids_res{hex_res}.csv"))
+sol_cover  <- read_csv(glue("{dir_data}/solution_coverage.csv"))
+sol_params <- read_csv(glue("{dir_data}/solution_params.csv"))
+
+sid <- 1
+
+h <- hex %>% 
+  inner_join(
+    sol_hex %>% 
+      filter(
+        hexres == hex_res,
+        sid == !!sid),
+    by = "hexid")
+
+pal <- colorNumeric(
+  palette = "Greens",
+  domain = c(0,1))
+
+leaflet() %>% 
+  addPolygons(
+    data = h,
+    stroke = F,
+    fillColor = ~pal(hexpct), opacity=1)
 
 # slider default value
-sldr_v <- 5
+sldr_v <- 2
 
 # run the Shiny app
 ui <- dashboardPage(
@@ -19,24 +42,20 @@ ui <- dashboardPage(
     title="BBNJ Prioritizr"),
   dashboardSidebar(
     h4("Ocean Area"),
-    sliderInput("sldr_area", "% Total", 0, 100, 30, step=10, post="%"),
+    sliderInput("sldr_area", "% Area", 30, 50, 30, step=20, post="%"),
     hr(),
-    h4("Proportion of Targets"),
-    sliderInput("sldr_fish", "Fishing", 1, 10, sldr_v, step=1, ticks=F),
+    h4("Importance of Targets"),
+    sliderInput("sldr_fish", "Fishing", 1, 3, sldr_v, step=1, ticks=F),
     bsTooltip("sldr_fish", "Inverse of catch potential", "right"),
     h5("Biodiversity"),
-    sliderInput("sldr_bioprod", "Primary Productivity", 1, 10, sldr_v, step=1, ticks=F),
-    bsTooltip(  "sldr_bioprod", "Vertically Generalized Production Model"),
-    sliderInput("sldr_biospp" , "Species Richness", 1, 10, sldr_v, step=1, ticks=F),
-    bsTooltip(  "sldr_biospp" , "Number of species by taxonomic group from AquaMaps"),
-    sliderInput("sldr_bioext" , "Species Extinction", 1, 10, sldr_v, step=1, ticks=F),
-    bsTooltip(  "sldr_bioext" , "Red List sum of extinction risk by taxonomic group from AquaMaps"),
+    sliderInput("sldr_vgpm", "Primary Productivity", 1, 3, sldr_v, step=1, ticks=F),
+    bsTooltip(  "sldr_vgpm", "vertically generalized production model"),
+    sliderInput("sldr_spp" , "Species", 1, 3, sldr_v, step=1, ticks=F),
+    bsTooltip(  "sldr_spp" , "species importance given by species richness multiplied by species extinction risk"),
     h5("Physical"),
-    sliderInput("sldr_physvents", "Hydrothermal Vents", 1, 10, sldr_v, step=1, ticks=F),
-    bsTooltip(  "sldr_physvents", "Hydrothermal vent count"),
-    sliderInput("sldr_physmounts", "Seamounts", 1, 10, sldr_v, step=1, ticks=F),
-    bsTooltip(  "sldr_physmounts", "Seamounts count"),
-    sliderInput("sldr_physscapes", "Seafloor", 1, 10, sldr_v, step=1, ticks=F),
+    sliderInput("sldr_benthic", "Benthic features", 1, 3, sldr_v, step=1, ticks=F),
+    bsTooltip(  "sldr_physvents", "hydrothermal vents and seamounts"),
+    sliderInput("sldr_physscapes", "Seafloor", 1, 3, sldr_v, step=1, ticks=F),
     bsTooltip(  "sldr_physscapes", "Benthic seascapes (11 types)"),
     shiny::actionButton("btn_calc", "Calculate", icon=icon("paper-plane"), width="85%")
   ),
@@ -80,7 +99,7 @@ server <- function(input, output) {
       getTooltip = ~abnj,
       wrapLongitude = FALSE)
     deckgl(zoom = 3, pitch = 0) %>%
-      # add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
+      add_h3_cluster_layer(data = hexids_url, properties = properties) %>%
       add_basemap()
     
   })
