@@ -158,6 +158,8 @@ Original:
 * [Tile Serving with Dynamic Geometry](https://www.crunchydata.com/blog/tile-serving-with-dynamic-geometry)
 
 
+`public.hexagons()` -> `tilehexagons()` -> `hexagoncoordinates()` -> `hexagon()`
+
 ### `hexagon()`
 
 ```{sql}
@@ -217,7 +219,6 @@ STRICT
 PARALLEL SAFE;
 
 ```
-
 
 ### `tilehexagons()`
 

@@ -23,20 +23,53 @@ manhattan_data <- fload(url) %>%
     species_name = if_else(species == 1, "dog", "cat")
   )
 
-mb_token <- readLines("~/My Drive/private/mapbox_bdbest_secret_token.txt")
+mb_token <- readLines("~/My Drive/private/mapbox_token_bdbest.txt")
 options(rdeck.mapbox_access_token = mb_token)
 rdeck::mapbox_access_token()
+
 rdeck(
-  map_style = mapbox_satellite(),
-  # set the bounds of the map to include all of the manhattan data
-  initial_bounds = st_bbox(manhattan_data$position),
+  map_style = mapbox_dark(),
+  initial_bounds = st_bbox(
+    c(xmin=-180, ymin=-90, xmax=180, ymax=90),
+    crs = st_crs(4326))
   # add a 2 pixel buffer to each point, making it easier to hover
-  picking_radius = 2
+  #picking_radius = 2
 ) %>%
   add_mvt_layer(
     name = "hex",
-    data = "https://tile.bbnj.app/public.hex_res2/{z}/{x}/{y}.pbf",
-    get_fill_color = "#0000FF") # blue
+    data = "https://tile.bbnj.app/public.hexagons/{z}/{x}/{y}.pbf?step=5",
+    # get_fill_color = "#0000FF") # blue
+    get_fill_color = scale_color_linear(
+      col = "i",
+      palette = viridis(21, alpha=0.5),
+      limits = c(-10, 10)),
+    auto_highlight = TRUE,
+    pickable = TRUE,
+    tooltip = c("i","j"))
+
+
+
+rdeck() |>
+  add_mvt_layer(
+    data = mvt_url("mapbox.country-boundaries-v1"),
+    get_fill_color = scale_color_linear(
+      col = color_group,
+      palette = viridis::viridis(6),
+      limits = c(1, 6)
+    ),
+    auto_highlight = TRUE,
+    pickable = TRUE,
+    tooltip = TRUE)
+
+rdeck(
+  initial_view_state = view_state(center =  c(-73.58, 45.53), zoom = 9)) |> 
+  add_mvt_layer(
+    data = mvt_url("dwachsmuth.borough_5"),
+    get_fill_color = scale_color_linear(
+      col = "canale_ind_q5_2016",
+      palette = c("#FF00FF", "#00FF00"),
+      limits = c(0, 5)))
+
 
   add_scatterplot_layer(
     name = "manhattan_animals",
