@@ -8,15 +8,15 @@ shinyServer(function(input, output, session) {
         crs = st_crs(4326))) %>%
       add_mvt_layer(
         name = "hex",
-        data = "https://tile.bbnj.app/public.hexagons/{z}/{x}/{y}.pbf?step=5",
+        data = "https://tile.bbnj.app/public.bbnj/{z}/{x}/{y}.pbf",
         # get_fill_color = "#0000FF") # blue
         get_fill_color = scale_color_linear(
-          col = "i",
-          palette = viridis(21, alpha=0.5),
-          limits = c(-10, 10)),
+          col = "hexpct",
+          palette = viridis(6, alpha=0.5),
+          limits = c(0, 1)),
         auto_highlight = TRUE,
         pickable = TRUE,
-        tooltip = c("i","j"))
+        tooltip = c("hexpct"))
   })
   
   # observeEvent(input$map_onclick, {
