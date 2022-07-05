@@ -3,7 +3,7 @@ shinyUI(fluidPage(
   theme = bs_theme(
     version = 5,
     bootswatch = "darkly",
-    "font-size-base" = "0.7rem",
+    "font-size-base" = "0.8rem",
     "navbar-padding-y" = "0", 
     "navbar-padding-x" = "0",
     "container-padding-x" = "0"),
