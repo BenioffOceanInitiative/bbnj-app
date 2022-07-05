@@ -198,9 +198,9 @@ AS $$
    	r integer;
   BEGIN
   bounds := ST_TileEnvelope(z, x, y);
-  IF z <  2 THEN
+  IF z <  3 THEN
     r := 2;
-  ELSIF z >= 2 AND z < 4 THEN
+  ELSIF z >= 3 AND z < 5 THEN
     r := 3;
   ELSE
     r := 4;

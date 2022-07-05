@@ -4,7 +4,7 @@ if (!require("librarian")){
   library(librarian)
 }
 librarian::shelf(
-  bslib, dplyr, qfes/rdeck, sf, viridis)
+  bslib, dplyr, httr2, qfes/rdeck, sf, shinyWidgets, viridis)
 
 # mb_token <- readLines("~/My Drive/private/mapbox_token_bdbest.txt")
 mb_token <- readLines("/share/data/mapbox_token_bdbest.txt")
