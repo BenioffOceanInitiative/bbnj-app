@@ -136,12 +136,13 @@ q <- glue("
     paste(collapse = "\nUNION\n")) # cat(q)
 dbSendQuery(con, q)
 
-# TODO: RUN
 # add indices
+# dbSendQuery(con, glue("DROP INDEX IF EXISTS hex_hexid_idx;"))
+# dbSendQuery(con, glue("DROP INDEX IF EXISTS sol_hex_idx;"))
 dbSendQuery(con, glue(
-  "CREATE UNIQUE INDEX IF NOT EXISTS hex_hexid_idx ON hex (hexid);"))
+  "CREATE UNIQUE INDEX IF NOT EXISTS hex_idx ON hex (hexres, hexid);"))
 dbSendQuery(con, glue(
-  "CREATE UNIQUE INDEX IF NOT EXISTS sol_hex_idx ON sol_hex (sid, hexid);"))
+  "CREATE UNIQUE INDEX IF NOT EXISTS sol_hex_idx ON sol_hex (sid, hexres, hexid);"))
 ```
 
 ## Test spatial with leaflet map
@@ -195,38 +196,44 @@ AS $$
     bounds geometry;
     maxbounds geometry := ST_TileEnvelope(0, 0, 0);
    	r integer;
-   	tbl_sol string;
-	  tbl_hex string;
   BEGIN
   bounds := ST_TileEnvelope(z, x, y);
-  r := '2'
-  tbl_sol := 'sol_hex2'
-  tbl_hex := 'hex_res2'
+  IF z <  2 THEN
+    r := 2;
+  ELSIF z >= 2 AND z < 4 THEN
+    r := 3;
+  ELSE
+    r := 4;
+  END IF;
     
-  EXECUTE format('SELECT count(*) FROM %I '
-   'WHERE inserted_by = $1 AND inserted <= $2', tabname)
 	FOR geom, hexpct IN    
-     EXECUTE format('
-			SELECT 
-        ST_TRANSFORM(h.geometry, 3857) AS geom, s.hexpct AS hexpct
-      FROM %I AS s', tbl_sol)
-      INNER JOIN hex_res2 AS h
-      	ON s.hexid = h.hexid
-      INNER JOIN sol_params p 
-      	ON s.sid = p.sid
-      WHERE 
-      	p.area    = _area AND
-      	p.benthic = _benthic AND 
-      	p.fishing = _fishing AND 
-      	p.scapes  = _scapes AND 
-      	p.spp     = _spp AND 
-      	p.vgpm    = _vgpm
-	    LOOP
-	       IF maxbounds ~ geom AND bounds && geom THEN
-	            RETURN NEXT;
-	       END IF;
-	    END LOOP;
-      END;
+		SELECT 
+      ST_TRANSFORM(h.geometry, 3857) AS geom, s.hexpct AS hexpct
+    FROM (
+      SELECT * 
+      FROM sol_hex 
+      WHERE
+        hexres = r) AS s
+    INNER JOIN (
+      SELECT *
+      FROM hex 
+      WHERE hexres = r) AS h
+    	ON s.hexid = h.hexid
+    INNER JOIN sol_params p 
+    	ON s.sid = p.sid
+    WHERE 
+    	p.area    = _area AND
+    	p.benthic = _benthic AND 
+    	p.fishing = _fishing AND 
+    	p.scapes  = _scapes AND 
+    	p.spp     = _spp AND 
+    	p.vgpm    = _vgpm
+    LOOP
+       IF maxbounds ~ geom AND bounds && geom THEN
+            RETURN NEXT;
+       END IF;
+    END LOOP;
+    END;
 $$
 LANGUAGE 'plpgsql'
 IMMUTABLE
