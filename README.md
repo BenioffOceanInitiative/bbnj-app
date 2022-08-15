@@ -5,6 +5,7 @@ Interactive application for evaluating high seas conservation plans. Funded by P
 Live application for internal review of results:
 
 https://shiny.bbnj.app/map
+![](./data/shiny.bbnj.app map.png)
 
 ## Rendering Conservation Plans
 
@@ -19,10 +20,13 @@ Install the prerequisite software:
 
 ### Download Scripts & Data
 
-Download and unzip these Github repositories into the same folder:
+Download these Github repositories into _**the same folder**_:
 
-- [BenioffOceanInitiative/`bbnj-app`](https://github.com/BenioffOceanInitiative/bbnj-app/archive/refs/heads/main.zip)
-- [BenioffOceanInitiative/`bbnj-scripts`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/master.zip)
+- `BenioffOceanInitiative/bbnj-app`\
+  Download [`bbnj-app-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-app/archive/refs/heads/main.zip) and unzip; or use `git clone https://github.com/BenioffOceanInitiative/bbnj-app`
+  
+- `BenioffOceanInitiative/`bbnj-scripts`\
+  Download [`bbnj-scripts-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/main.zip) and unzip; or use `git clone https://github.com/BenioffOceanInitiative/bbnj-scripts`
 
 ### Run script
 
@@ -30,8 +34,7 @@ If using RStudio, open `bbnj-app/bbnj-app.Rproj` to set working directory (or in
 
 In RStudio, Knit `generate.Rmd`. (in R: `rmarkdown::render("generate.Rmd")`) after first:
 
-- Update paths as needed, eg for Google Drive: `dir_gdata`.
-
+- Update paths as needed, e.g. for Google Drive (or any local folder) path `dir_gdata`.
 
 ## Notebooks
 
