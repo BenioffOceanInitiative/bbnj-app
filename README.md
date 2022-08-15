@@ -4,8 +4,9 @@ Interactive application for evaluating high seas conservation plans. Funded by P
 
 Live application for internal review of results:
 
-https://shiny.bbnj.app/map
-![](./data/shiny.bbnj.app map.png)
+  https://shiny.bbnj.app/map
+  
+  ![](./data/shiny.bbnj.app map.png)
 
 ## Rendering Conservation Plans
 
