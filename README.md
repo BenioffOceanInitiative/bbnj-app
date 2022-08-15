@@ -34,7 +34,7 @@ Download these Github repositories into _**the same folder**_:
 
 If using RStudio, open `bbnj-app/bbnj-app.Rproj` to set working directory (or in R: `setwd("/your/path/to/bbnj-app")`).
 
-In RStudio, Knit `generate.Rmd`. (in R: `rmarkdown::render("generate.Rmd")`) after first:
+In RStudio, open [`generate.Rmd`](./generate.Rmd) and **Knit** (or in R standalone: `rmarkdown::render("generate.Rmd")`) after you first:
 
 - Update paths as needed, e.g. for Google Drive (or any local folder) path `dir_gdata`.
 
