@@ -6,7 +6,7 @@ Live application for internal review of results:
 
   https://shiny.bbnj.app/map
   
-  ![](./data/shiny.bbnj.app map.png)
+  ![](./data/app_map.png)
 
 ## Rendering Conservation Plans
 
