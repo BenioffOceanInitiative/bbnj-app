@@ -23,10 +23,12 @@ Install the prerequisite software:
 Download these Github repositories into _**the same folder**_:
 
 - `BenioffOceanInitiative/bbnj-app`\
-  Download [`bbnj-app-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-app/archive/refs/heads/main.zip) and unzip; or use `git clone https://github.com/BenioffOceanInitiative/bbnj-app`
+  Download [`bbnj-app-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-app/archive/refs/heads/main.zip) and unzip; or use:\
+  `git clone https://github.com/BenioffOceanInitiative/bbnj-app`
   
-- `BenioffOceanInitiative/`bbnj-scripts`\
-  Download [`bbnj-scripts-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/main.zip) and unzip; or use `git clone https://github.com/BenioffOceanInitiative/bbnj-scripts`
+- `BenioffOceanInitiative/bbnj-scripts`\
+  Download [`bbnj-scripts-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/main.zip) and unzip; or use:\
+  `git clone https://github.com/BenioffOceanInitiative/bbnj-scripts`
 
 ### Run script
 
