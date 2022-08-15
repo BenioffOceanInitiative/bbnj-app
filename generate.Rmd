@@ -19,7 +19,7 @@ This script prepares, solves and aggregates the conservation solutions for the B
 
 ## Prepare H3 hexagonal planning units
 
-We'll take advantage of Uber's [https://www.uber.com/blog/h3](H3) hexagonal hierarchical spatial index using the R package [h3](https://crazycapivara.github.io/h3-r/articles/h3.html) with the following points:
+We'll take advantage of Uber's [H3](https://www.uber.com/blog/h3) hexagonal hierarchical spatial index using the R package [`h3`](https://crazycapivara.github.io/h3-r/articles/h3.html) with the following points:
 
 - Include areas beyond national jurisdiction (ABNJ) with  [`bbnj::p_abnj`](https://benioffoceaninitiative.github.io/bbnj/reference/p_abnj.html). 
 
