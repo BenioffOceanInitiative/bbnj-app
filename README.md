@@ -1,34 +1,39 @@
 # bbnj-app
-Interactive app for evaluating high seas marine reserves
 
-The old app:
+Interactive application for evaluating high seas conservation plans. Funded by Pew Trust.
 
-https://ecoquants.shinyapps.io/bbnj/
+Live application for internal review of results:
 
-The new app:
+https://shiny.bbnj.app/map
 
-https://shiny.ecoquants.com/bbnj-app/
+## Rendering Conservation Plans
 
-## load vector tile dynamic db
+### Install Software
 
-```bash
-# log onto server
-ssh root@ssh.calcofi.io
+Install the prerequisite software:
 
-# get shell in postgis container
-docker exec -it postgis bash
+- [R](https://cran.r-project.org)
+- [Gurobi](https://www.gurobi.com); see [Install Gurobi academic license for prioritizr](https://prioritizr.net/articles/gurobi_installation_guide.html)
+- [Git](https://git-scm.com) (optional)
+- [RStudio IDE](https://www.rstudio.com/products/rstudio/download) (optional)
 
-# create database bbnj
-createdb -U admin bbnj
+### Download Scripts & Data
 
-# cyberduck copy Gdrive bbnj-app/data/* via SFTP root@ssh.calcofi.io
-#   to /share/data/bbnj
-cd /share/data/bbnj
-ogr2ogr -f PostgreSQL PG:"dbname=gis user=admin" hex_res2.geojson -nln roads
+Download and unzip these Github repositories into the same folder:
 
-```
+- [BenioffOceanInitiative/`bbnj-app`](https://github.com/BenioffOceanInitiative/bbnj-app/archive/refs/heads/main.zip)
+- [BenioffOceanInitiative/`bbnj-scripts`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/master.zip)
 
-## notebooks
+### Run script
+
+If using RStudio, open `bbnj-app/bbnj-app.Rproj` to set working directory (or in R: `setwd("/your/path/to/bbnj-app")`).
+
+In RStudio, Knit `generate.Rmd`. (in R: `rmarkdown::render("generate.Rmd")`) after first:
+
+- Update paths as needed, eg for Google Drive: `dir_gdata`.
+
+
+## Notebooks
 
 These web pages (\*.html) are typically rendered from Rmarkdown (\*.Rmd):
 
@@ -38,3 +43,5 @@ These web pages (\*.html) are typically rendered from Rmarkdown (\*.Rmd):
 * [{{ file.basename }}]({{ site.baseurl }}{{ file.path }})
   {% endif %}
 {% endfor %}
+
+## 
