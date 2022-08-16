@@ -4,7 +4,7 @@ Interactive application for evaluating high seas conservation plans. Funded by P
 
 Live application for internal review of results:
 
-  https://shiny.bbnj.app/map
+  [shiny.bbnj.app/map](https://shiny.bbnj.app/map)
   
   ![](./data/app_map.png)
 
@@ -25,11 +25,11 @@ Download these Github repositories into _**the same folder**_:
 
 - `BenioffOceanInitiative/bbnj-app`\
   Download [`bbnj-app-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-app/archive/refs/heads/main.zip) and unzip; or use:\
-  `git clone https://github.com/BenioffOceanInitiative/bbnj-app`
+  `git clone https://github.com/BenioffOceanInitiative/bbnj-app.git`
   
 - `BenioffOceanInitiative/bbnj-scripts`\
   Download [`bbnj-scripts-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/main.zip) and unzip; or use:\
-  `git clone https://github.com/BenioffOceanInitiative/bbnj-scripts`
+  `git clone https://github.com/BenioffOceanInitiative/bbnj-scripts.git`
 
 ### Run script
 
