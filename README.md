@@ -28,7 +28,7 @@ Download these Github repositories into _**the same folder**_:
   `git clone https://github.com/BenioffOceanInitiative/bbnj-app.git`
   
 - `BenioffOceanInitiative/bbnj-scripts`\
-  Download [`bbnj-scripts-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/main.zip) and unzip; or use:\
+  Download [`bbnj-scripts-main.zip`](https://github.com/BenioffOceanInitiative/bbnj-scripts/archive/refs/heads/master.zip) and unzip; or use:\
   `git clone https://github.com/BenioffOceanInitiative/bbnj-scripts.git`
 
 ### Run script
