@@ -1,0 +1,62 @@
+id,lyr,in_nspp,taxa
+1,bio_vgpm,FALSE,
+2,fishing_KWH,FALSE,
+3,nspp_2100_bivalves,FALSE,
+4,nspp_2100_bony.fishes,FALSE,
+5,nspp_2100_cephalopods,FALSE,
+6,nspp_2100_cetaceans,FALSE,
+7,nspp_2100_chitons,FALSE,
+8,nspp_2100_corals,FALSE,
+9,nspp_2100_crustaceans,FALSE,
+10,nspp_2100_echinoderms,FALSE,
+11,nspp_2100_euphausiids,FALSE,
+12,nspp_2100_forams,FALSE,
+13,nspp_2100_gastropods,FALSE,
+14,nspp_2100_hydrozoans,FALSE,
+15,nspp_2100_jellyfish,FALSE,
+16,nspp_2100_other,FALSE,
+17,nspp_2100_pinnipeds,FALSE,
+18,nspp_2100_reptiles,FALSE,
+19,nspp_2100_sea.spiders,FALSE,
+20,nspp_2100_seagrasses,FALSE,
+21,nspp_2100_sharks.n.rays,FALSE,
+22,nspp_2100_sponges,FALSE,
+23,nspp_2100_tunas.n.billfishes,FALSE,
+24,nspp_2100_tunicates,FALSE,
+25,nspp_2100_worms,FALSE,
+26,nspp_bivalves,TRUE,other invertebrates
+27,nspp_bony.fishes,TRUE,fishes
+28,nspp_cephalopods,TRUE,other invertebrates
+29,nspp_cetaceans,TRUE,marine mammals
+30,nspp_chitons,TRUE,other invertebrates
+31,nspp_corals,TRUE,corals
+32,nspp_crustaceans,TRUE,other invertebrates
+33,nspp_echinoderms,TRUE,other invertebrates
+34,nspp_euphausiids,TRUE,other invertebrates
+35,nspp_forams,TRUE,other invertebrates
+36,nspp_gastropods,TRUE,other invertebrates
+37,nspp_hydrozoans,TRUE,other invertebrates
+38,nspp_jellyfish,TRUE,other invertebrates
+39,nspp_other,TRUE,other invertebrates
+40,nspp_pinnipeds,TRUE,marine mammals
+41,nspp_reptiles,TRUE,sea turtles
+42,nspp_sea.spiders,TRUE,other invertebrates
+43,nspp_seagrasses,TRUE,seagrasses
+44,nspp_sharks.n.rays,TRUE,sharks and rays
+45,nspp_sponges,TRUE,other invertebrates
+46,nspp_tunas.n.billfishes,TRUE,fishes
+47,nspp_tunicates,TRUE,other invertebrates
+48,nspp_worms,TRUE,other invertebrates
+49,phys_seamounts_0to200m,FALSE,
+50,phys_seamounts_gt200to800m,FALSE,
+51,phys_seamounts_gt800m,FALSE,
+52,phys_vents,FALSE,
+53,r_fish_effort_log,FALSE,
+54,rls_all,FALSE,
+55,rls_all_future,FALSE,
+56,rls_all_now,FALSE,
+57,s_bio_future_all,FALSE,
+58,s_bio_now_all,FALSE,
+59,s_bio_now_all_log10,FALSE,
+60,scapes_hetero,FALSE,
+61,seamounts_all,FALSE,

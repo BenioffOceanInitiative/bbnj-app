@@ -44,7 +44,8 @@ librarian::shelf(
   purrr, raster, readr, rgdal, rlang, scales, sf, stringr, 
   terra, tibble,  tidyr, units)
 source(here("libs/functions.R"))   # define custom functions
-select <- dplyr::select            # override raster::select()
+select  <- dplyr::select           # override raster::select()
+rescale <- scales::rescale         # override terra::rescale()
 options(readr.show_col_types = F)  # less output reading CSVs
 mapviewOptions(fgb = F)
 mapviewOptions(
@@ -154,7 +155,7 @@ if (!file.exists(lyrs7_grd)){
 }
 s_lyrs7 <- terra::rast(lyrs7_grd)
 names(s_lyrs7)
-plot(s_lyrs7)
+terra::plot(s_lyrs7)
 ```
 
 ### Extract 5 layers to planning units
@@ -230,7 +231,7 @@ s_configs %>%
 
 ### Solve for Scenarios
 
-```{r}
+```{r, eval=T}
 # set eval = TRUE to run remaining R chunks and generate outputs
 # set eval = FALSE for quickly rendering *.Rmd to *.html
 knitr::opts_chunk$set(eval = FALSE)
@@ -448,5 +449,123 @@ Outputs can be found here in [bbnj-app/data/ - Google Drive](https://drive.googl
 The prototype app to crudely display these results from slider inputs is here:
 
 https://shiny.bbnj.app/map
-![](./data/shiny.bbnj.app map.png)
+![](./data/app_map.png)
+
+## Summarize Solutions to Taxonomic Groups
+
+```{r, eval=T}
+# set eval = TRUE to run remaining R chunks and generate outputs
+# set eval = FALSE for quickly rendering *.Rmd to *.html
+knitr::opts_chunk$set(eval = TRUE)
+```
+
+```{r}
+tc_csv  <- here(glue("data/taxa_coverage.csv"))
+tc_gcsv <- glue("{dir_gdata}/taxa_coverage.csv")
+overwrite = F
+
+if (!file.exists(tc_csv) | overwrite){
+
+  # read layers from bbnj-scripts ----
+  tifs1 <- list.files(here("../bbnj-scripts/map_layers"), "tif$", full.names = T)
+  names(tifs1)
+  tifs2 <- list.files(here("../bbnj-scripts/presentation_maps"), "tif$", full.names = T)[-1] # drop redundant bio_vgpm.tif
+  s_lyrs <- stack(c(tifs1, tifs2))
+  
+  d_lyrs <- tibble(
+    lyr = sort(names(lyrs))) %>% 
+    rownames_to_column("id") %>% 
+    mutate(
+      in_nspp = ifelse(id %in% 26:48, T, F)) # View(d_lyrs)
+  write_csv(d_lyrs, "data/lyrs.csv")
+  
+  # manually assigned taxa column for those in_spp
+  lyr_grps <- read_csv("data/lyrs_spp-grps.csv") %>% 
+    filter(
+      in_nspp,
+      !is.na(taxa)) %>% 
+    arrange(taxa, lyr) %>% 
+    select(grp = taxa, lyr, id)
+  grps <- unique(lyr_grps$grp)
+  grps
+  
+  datatable(lyr_grps)
+  
+  # summarize to groups ----
+  for (g in grps){ # g = grps[1]
+    g_tif <- glue("data/taxa/{g}.tif")
+    
+    if (!file.exists(g_tif) | overwrite){
+      # get stack from layers in group
+      g_lyrs <- lyr_grps %>% 
+        filter(grp == !!g) %>% 
+        pull(lyr)
+      s_nspp <- terra::subset(s_lyrs, g_lyrs)
+      
+      # sum layers if more than one
+      if (nlayers(s_nspp) > 1){
+        r_nspp <- calc(s_nspp, sum, na.rm = T)  
+      } else {
+        r_nspp <- s_nspp
+      }
+      
+      # write raster
+      writeRaster(r_nspp, g_tif)
+    }
+  }
+  
+  # extract to planning units ----
+  pu <- get_hex(4)
+  pu_taxa_csv <- here("data/taxa/pu_hex4_taxa.csv")
+  if (!file.exists(pu_taxa_csv) | overwrite){
+  
+    tifs <- list.files(here("data/taxa"), "tif$", full.names = T)
+    s <- stack(tifs)
+  
+    # extract feature values
+    f_0 <- exact_extract(
+      s, pu, fun = "mean", append_cols = "hexid", progress = F) %>% 
+      tibble() %>% 
+      rename_with(~str_replace(., "mean.", ""), everything())
+    
+    # extra feature calculations
+    f_1 <- f_0 %>% 
+      mutate(
+        across(where(is.numeric), ~replace_na(., 0)))
+  
+    # rescale features to add up to 1 (ie 100%)
+    f <- f_1 %>% 
+      mutate(
+        across(where(is.numeric), function(x){ x / sum(x)}))
+    write_csv(f, pu_taxa_csv)
+  }
+  
+  # get taxonomic groups per hex planning unit
+  t_pu <- read_csv(pu_taxa_csv) # 129,906 × 8
+  # paste(names(t_pu), collapse=", ") 
+  # hexid, corals, fishes, marine_mammals, other_invertebrates, sea_turtles, seagrasses, sharks_and_rays
+  
+  # get solution planning units
+  s_pu <- read_csv(glue("{dir_gdata}/solution_hexids_res4.csv")) # 26,607,230 × 4
+  # paste(names(s_pu), collapse=", ") 
+  # sid, hexres, hexid, hexpct
+  
+  st_pu <- s_pu %>% 
+    inner_join(
+      t_pu, by="hexid") %>%
+    group_by(sid) %>% 
+    summarize(
+      corals              = sum(corals),
+      fishes              = sum(fishes),
+      marine_mammals      = sum(marine_mammals),
+      other_invertebrates = sum(other_invertebrates),
+      sea_turtles         = sum(sea_turtles),
+      seagrasses          = sum(seagrasses),
+      sharks_and_rays     = sum(sharks_and_rays))
+  write_csv(st_pu, tc_csv)
+  file.copy(tc_csv, tc_gcsv)
+}
+d_tc <- read_csv(tc_csv)
+datatable(d_tc, caption = "Taxonomic coverage of solutions")
+```
 
