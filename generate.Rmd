@@ -28,6 +28,12 @@ We'll take advantage of Uber's [H3](https://www.uber.com/blog/h3) hexagonal hier
   
 - Use [`h3::h3_set_to_multi_polygon()`](https://crazycapivara.github.io/h3-r/reference/h3_set_to_multi_polygon.html) to create a (multi) polygon describing the outline(s) of a set of hexagons.
 
+* [Gurobi installation guide • prioritizr](https://prioritizr.net/articles/gurobi_installation_guide.html)
+
+```r
+install.packages("/Library/gurobi952/macos_universal2/R/gurobi_9.5-2_R_4.2.0.tgz", repos=NULL)
+```
+
 ```{r libraries}
 # install library from Github source if missing
 if (!require("h3")){
@@ -41,7 +47,7 @@ librarian::shelf(
   dplyr, DT,
   exactextractr, fs, ggplot2, glue, h3, here, mapview, 
   prioritizr, # prioritization library
-  purrr, raster, readr, rgdal, rlang, scales, sf, stringr, 
+  purrr, raster, readr, rgdal, rlang, scales, sf, slam, stringr, 
   terra, tibble,  tidyr, units)
 source(here("libs/functions.R"))   # define custom functions
 select  <- dplyr::select           # override raster::select()
@@ -53,7 +59,7 @@ mapviewOptions(
 
 # Google Drive on local machine (CHANGE THIS TO ANY LOCAL FOLDER)
 dir_gdata <- "/Users/bbest/My Drive/projects/bbnj-app/data"
-```   
+```
 
 ### make `hex_sf` for `abnj` at different resolutions
 
@@ -113,6 +119,7 @@ Start with the output layers from the previous analysis in [bbnj-scripts]( https
 
 ```{r lyrs7}
 lyrs7_grd <- here("data/lyrs7_mol.grd")
+lyrs_sppidx <- 3:48
 
 if (!file.exists(lyrs7_grd)){
   tifs1 <- list.files(here("../bbnj-scripts/map_layers"), "tif$", full.names = T)
@@ -120,7 +127,8 @@ if (!file.exists(lyrs7_grd)){
   lyrs <- stack(c(tifs1, tifs2))
   sort(names(lyrs))
   
-  s_nspp <- subset(lyrs, sort(names(lyrs))[26:48])
+  
+  s_nspp <- subset(lyrs, sort(names(lyrs))[lyrs_sppidx]) # nspp_2100_* + nspp_*
   r_nspp <- calc(s_nspp, sum, na.rm = T)
   
   s_mounts <- subset(lyrs, sort(names(lyrs))[49:51])
@@ -183,7 +191,7 @@ if (!file.exists(f5_csv)){
       benthic = vents + mounts) %>%   # TODO: rescale(vents) + rescale(mounts)? 
     mutate(
       across(where(is.numeric), ~replace_na(., 0)))
-
+  
   # rescale features
   f <- f_1 %>% 
     mutate(
@@ -237,12 +245,49 @@ s_configs %>%
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
+Cumulative sum plots of layers for determining target per layer and allowing weights to have differential impact on scenario solution.
+
+#### hex anti-meridian issues
+
+TODO: investigate geometry repair over sf::`st_make_valid()` with `wdpar::st_repair_geometry()`, especially for dateline issues:
+
+* [Clean data — wdpa_clean • wdpar](https://prioritizr.github.io/wdpar/reference/wdpa_clean.html)
+* [Repair geometry — st_repair_geometry • wdpar](https://prioritizr.github.io/wdpar/reference/st_repair_geometry.html)
+
+#### plots of max feature
+
+
+Generate all combinations of scenario parameters
+
+
 ```{r}
+# get max value per layer, a la carrying capacity (K)
+k_p <- sapply(
+  c("fishing", "benthic", "scapes", "vgpm", "spp"),
+  function(var){
+    get_pu_v_ks(pu_f, !!sym(var), c(0.3, 0.5))
+  }, 
+  simplify = F)
+k <- map(k_p, "k") %>% 
+  bind_rows() %>% 
+  select(-km2) %>% 
+  rename(pct_area = k)
+datatable(k) %>% 
+  formatPercentage(c("pct_area", "pct_val"), 1)
+# plots of max possible values with incremental ocean area
+p <- map(k_p, "p") # get plots
+# walk(p, print)
+# print(p)
+# print(p$fishing)
+
+
 t0 <- Sys.time()
+# source(here("libs/functions.R"))
 s_lst <- s_configs %>% 
   pmap(get_scenario) 
 Sys.time() - t0
 # ~39 minutes to generate fresh on Ben's 2018 MacBook Pro
+# ~15 minutes to generate fresh on Ben's 2022 MacBook Air M2
 
 S <- tibble(
   s = s_lst) %>% 
@@ -473,10 +518,10 @@ if (!file.exists(tc_csv) | overwrite){
   s_lyrs <- stack(c(tifs1, tifs2))
   
   d_lyrs <- tibble(
-    lyr = sort(names(lyrs))) %>% 
+    lyr = sort(names(s_lyrs))) %>% 
     rownames_to_column("id") %>% 
     mutate(
-      in_nspp = ifelse(id %in% 26:48, T, F)) # View(d_lyrs)
+      in_nspp = ifelse(id %in% lyrs_sppidx, T, F)) # View(d_lyrs)
   write_csv(d_lyrs, "data/lyrs.csv")
   
   # manually assigned taxa column for those in_spp
@@ -567,5 +612,11 @@ if (!file.exists(tc_csv) | overwrite){
 }
 d_tc <- read_csv(tc_csv)
 datatable(d_tc, caption = "Taxonomic coverage of solutions")
+paste(names(d_tc), collapse=", ")
 ```
 
+### Summary of outputs
+
+-   species coverage of solutions:
+
+    -   `taxa_coverage.csv` (65 kb): for each scenario (`sid`), extra columns of total percent presence of species richness per group (n=7): corals, fishes, marine_mammals, other_invertebrates, sea_turtles, seagrasses, sharks_and_rays. Locations: [Github html](https://github.com/BenioffOceanInitiative/bbnj-app/blob/main/data/taxa_coverage.csv), [Github raw](https://raw.githubusercontent.com/BenioffOceanInitiative/bbnj-app/main/data/taxa_coverage.csv), [Google Drive](https://drive.google.com/file/d/17idQMV_-M4cRvasbP5mz4f0327YPmNen/view?usp=sharing)
