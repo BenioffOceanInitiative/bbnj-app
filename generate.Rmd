@@ -620,3 +620,60 @@ paste(names(d_tc), collapse=", ")
 -   species coverage of solutions:
 
     -   `taxa_coverage.csv` (65 kb): for each scenario (`sid`), extra columns of total percent presence of species richness per group (n=7): corals, fishes, marine_mammals, other_invertebrates, sea_turtles, seagrasses, sharks_and_rays. Locations: [Github html](https://github.com/BenioffOceanInitiative/bbnj-app/blob/main/data/taxa_coverage.csv), [Github raw](https://raw.githubusercontent.com/BenioffOceanInitiative/bbnj-app/main/data/taxa_coverage.csv), [Google Drive](https://drive.google.com/file/d/17idQMV_-M4cRvasbP5mz4f0327YPmNen/view?usp=sharing)
+
+## Generate hierarchical hexagon tiles for serving from a folder
+
+```{r}
+list.files(dir_gdata)
+
+r <- 2
+for (r in 2:4){
+  h <- st_read(glue("{dir_gdata}/hex_res{r}.geojson"))
+  d <- read_csv(glue("{dir_gdata}/solution_hexids_res{r}.csv"))
+  d %>% 
+    select(-hexres) %>% 
+    pivot_wider(
+      names_from=sid, values_from = hexpct) %>% 
+    write_csv(
+      glue("{dir_gdata}/solution_hexids_res{r}_wide.csv")
+    )
+}
+
+paste(names(h), collapse=", ") # hexid, on_dtln, lon, lat, FID, geometry
+paste(names(d), collapse=", ") # sid, hexres, hexid, hexpct
+```
+
+* example: [mapbox/tippecanoe](https://github.com/mapbox/tippecanoe#show-countries-at-low-zoom-levels-but-states-at-higher-zoom-levels) - Show countries at low zoom levels but states at higher zoom levels
+
+```
+# paths
+# dir_gdata
+cd '/Users/bbest/My Drive/projects/bbnj-app/data'
+# hex tiles folder
+dir_tiles='/Users/bbest/My Drive/projects/bbnj-app/data/hex_tiles'
+
+# per resolution, convert geojson to mbtiles with attributes from csv
+opts='--no-tile-compression --force --coalesce-densest-as-needed'
+r=2; z_max=3
+tippecanoe $opts -o hex_res${r}.mbtiles -z${z_max} hex_res${r}.geojson
+tile-join -o hex_res${r}_sol.mbtiles -x hexid -c solution_hexids_res${r}_wide.csv hex_res${r}.mbtiles
+r=3; z_min=4; z_max=6
+tippecanoe $opts -o hex_res${r}.mbtiles -Z${z_min} -z${z_max} hex_res${r}.geojson
+tile-join -o hex_res${r}_sol.mbtiles -x hexid -c solution_hexids_res${r}_wide.csv hex_res${r}.mbtiles
+r=4; z_min=7; z_max=14
+tippecanoe $opts -o hex_res${r}.mbtiles -Z${z_min} -z${z_max} hex_res${r}.geojson
+tile-join -o hex_res${r}_sol.mbtiles -x hexid -c solution_hexids_res${r}_wide.csv hex_res${r}.mbtiles
+
+# join resolutions into directory of tiles, no-tile-compression
+tile-join --no-tile-compression --force -e ${dir_tiles}_no-tile-compression \
+  hex_res2_sol.mbtiles \
+  hex_res3_sol.mbtiles \
+  hex_res4_sol.mbtiles
+
+# join resolutions into directory of tiles, with tile compression
+tile-join --force -e ${dir_tiles}_no-tile-compression \
+  hex_res2_sol.mbtiles \
+  hex_res3_sol.mbtiles \
+  hex_res4_sol.mbtiles
+```
+
