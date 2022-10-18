@@ -624,20 +624,20 @@ paste(names(d_tc), collapse=", ")
 ## Generate hierarchical hexagon tiles for serving from a folder
 
 ```{r}
-list.files(dir_gdata)
+# list.files(dir_gdata)
 
-r <- 2
 for (r in 2:4){
   h <- st_read(glue("{dir_gdata}/hex_res{r}.geojson"))
   d <- read_csv(glue("{dir_gdata}/solution_hexids_res{r}.csv"))
   d %>% 
     select(-hexres) %>% 
     pivot_wider(
-      names_from=sid, values_from = hexpct) %>% 
+      names_from  = sid, names_prefix = "s", 
+      values_from = hexpct) %>% 
     write_csv(
-      glue("{dir_gdata}/solution_hexids_res{r}_wide.csv")
-    )
+      glue("{dir_gdata}/solution_hexids_res{r}_wide.csv"))
 }
+read_csv(glue("{dir_gdata}/solution_hexids_res{r}_wide.csv")) %>% names()
 
 paste(names(h), collapse=", ") # hexid, on_dtln, lon, lat, FID, geometry
 paste(names(d), collapse=", ") # sid, hexres, hexid, hexpct
@@ -645,35 +645,85 @@ paste(names(d), collapse=", ") # sid, hexres, hexid, hexpct
 
 * example: [mapbox/tippecanoe](https://github.com/mapbox/tippecanoe#show-countries-at-low-zoom-levels-but-states-at-higher-zoom-levels) - Show countries at low zoom levels but states at higher zoom levels
 
+```{r}
+# write bash script
+librarian::shelf(
+  dplyr, glue)
+
+# outside Google Drive
+dir_gdata  <- "/Users/bbest/My Drive/projects/bbnj-app/data"
+dir_big    <- "/Users/bbest/big/bbnj-app_data"
+dir_tiles  <- glue("{dir_big}/hex_tiles")
+sh         <- "/bin/sh"
+script_sh  <- glue("{dir_big}/hex_tiles_make.sh")
+script_log <- glue("{dir_big}/hex_tiles_log.txt")
+  
+d_tilesets <- tribble(
+  ~h, ~z_min, ~z_max,
+   2,      0,      3,
+   3,      4,      6,
+   4,      7,     10)
+w <- function(ln, append=T, ...){
+  write(paste(ln, "\n"), file=script_sh, append=append, ...)
+}
+glue("
+  #!{sh}
+  set -x # echo commands
+  
+  # redirect stdout/stderr to a file
+  exec >'{script_log}' 2>&1") %>% w(append=F)
+opts='--force --no-tile-compression --coalesce-densest-as-needed --layer=pct_pu --description="percent in conservation solution of hexagonal planning units (~42x42km)"'
+for (i in seq_along(d_tilesets)){ # i = 1
+  with(
+    d_tilesets[i,], {
+    glue(
+      'echo "h:{h}, z_min:{z_min}, z_max:{z_max}"
+      # geojson to mbtiles
+      echo `date`
+      tippecanoe --output="{dir_big}/hex_res{h}.mbtiles" \\
+        {opts} --minimum-zoom={z_min} --maximum-zoom={z_max} \\
+        "{dir_gdata}/hex_res{h}.geojson"
+      # add percent solution columns `s#` to mbtiles
+      echo `date`
+      tile-join -f -o "{dir_big}/hex_res{h}_sol.mbtiles" \\
+        -x hexid -c "{dir_gdata}/solution_hexids_res{h}_wide.csv" \\
+        "{dir_big}/hex_res{h}.mbtiles"') %>% w()
+    })
+}
+glue("
+  # join resolutions into directory of tiles, no-tile-compression
+  echo `date`
+  tile-join --no-tile-compression --force -e '{dir_tiles}_no-tile-compression' \\
+    '{dir_big}/hex_res2_sol.mbtiles' \\
+    '{dir_big}/hex_res3_sol.mbtiles' \\
+    '{dir_big}/hex_res4_sol.mbtiles'
+
+  # join resolutions into directory of tiles, with tile compression
+  echo `date`
+  tile-join --force -e '{dir_tiles}' \\
+    '{dir_big}/hex_res2_sol.mbtiles' \\
+    '{dir_big}/hex_res3_sol.mbtiles' \\
+    '{dir_big}/hex_res4_sol.mbtiles'
+
+  # compress directories
+  echo `date`
+  tar -jcf '{dir_tiles}.tar.bz2'                     '{dir_tiles}'
+  echo `date`
+  tar -jcf '{dir_tiles}_no-tile-compression.tar.bz2' '{dir_tiles}_no-tile-compression'
+  
+  # get sizes
+  echo `date`
+  du -sh {dir_tiles}*
+  
+  # move to Google Drive
+  echo `date`
+  mv '{dir_tiles}.tar.bz2'                     '{dir_gdata}/{basename(dir_tiles)}.tar.bz2'
+  echo `date`
+  mv '{dir_tiles}_no-tile-compression.tar.bz2' '{dir_gdata}/{basename(dir_tiles)}_no-tile-compression.tar.bz2'
+  
+  # finished
+  echo `date`") %>% w()
+
+system(glue("{sh} {script_sh}"))
+# TODO: move script_sh, script_log to dir_gdata
 ```
-# paths
-# dir_gdata
-cd '/Users/bbest/My Drive/projects/bbnj-app/data'
-# hex tiles folder
-dir_tiles='/Users/bbest/My Drive/projects/bbnj-app/data/hex_tiles'
-
-# per resolution, convert geojson to mbtiles with attributes from csv
-opts='--no-tile-compression --force --coalesce-densest-as-needed'
-r=2; z_max=3
-tippecanoe $opts -o hex_res${r}.mbtiles -z${z_max} hex_res${r}.geojson
-tile-join -o hex_res${r}_sol.mbtiles -x hexid -c solution_hexids_res${r}_wide.csv hex_res${r}.mbtiles
-r=3; z_min=4; z_max=6
-tippecanoe $opts -o hex_res${r}.mbtiles -Z${z_min} -z${z_max} hex_res${r}.geojson
-tile-join -o hex_res${r}_sol.mbtiles -x hexid -c solution_hexids_res${r}_wide.csv hex_res${r}.mbtiles
-r=4; z_min=7; z_max=14
-tippecanoe $opts -o hex_res${r}.mbtiles -Z${z_min} -z${z_max} hex_res${r}.geojson
-tile-join -o hex_res${r}_sol.mbtiles -x hexid -c solution_hexids_res${r}_wide.csv hex_res${r}.mbtiles
-
-# join resolutions into directory of tiles, no-tile-compression
-tile-join --no-tile-compression --force -e ${dir_tiles}_no-tile-compression \
-  hex_res2_sol.mbtiles \
-  hex_res3_sol.mbtiles \
-  hex_res4_sol.mbtiles
-
-# join resolutions into directory of tiles, with tile compression
-tile-join --force -e ${dir_tiles}_no-tile-compression \
-  hex_res2_sol.mbtiles \
-  hex_res3_sol.mbtiles \
-  hex_res4_sol.mbtiles
-```
-
