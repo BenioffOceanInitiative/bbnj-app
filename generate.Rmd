@@ -725,6 +725,7 @@ glue("
 
 system(glue("{sh} {script_sh}"))
 # TODO: move script_sh, script_log to dir_gdata
+fs::file_copy(script_sh, glue("{dir_gdata}/{basename(script_sh)}"))
 ```
 
 ```
