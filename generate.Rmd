@@ -726,3 +726,12 @@ glue("
 system(glue("{sh} {script_sh}"))
 # TODO: move script_sh, script_log to dir_gdata
 ```
+
+```
+2.1G	/Users/bbest/big/bbnj-app_data/hex_tiles
+573M	/Users/bbest/big/bbnj-app_data/hex_tiles.tar.bz2
+ 66M	/Users/bbest/big/bbnj-app_data/hex_tiles_log.txt
+4.0K	/Users/bbest/big/bbnj-app_data/hex_tiles_make.sh
+4.5G	/Users/bbest/big/bbnj-app_data/hex_tiles_no-tile-compression
+193M	/Users/bbest/big/bbnj-app_data/hex_tiles_no-tile-compression.tar.bz2
+```
