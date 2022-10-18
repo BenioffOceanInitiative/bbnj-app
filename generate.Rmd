@@ -626,7 +626,7 @@ paste(names(d_tc), collapse=", ")
 ```{r}
 # list.files(dir_gdata)
 
-for (r in 2:4){
+for (r in 2:4){ # r = 2
   h <- st_read(glue("{dir_gdata}/hex_res{r}.geojson"))
   d <- read_csv(glue("{dir_gdata}/solution_hexids_res{r}.csv"))
   d %>% 
